@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Layers, Navigation, Settings, MousePointerClick, Upload, Compass } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { createClient } from '@/lib/supabase/client'
 import PanoramaViewer from '@/components/panorama/panorama-viewer'
 import HotspotPopup from '@/components/panorama/hotspot-popup'
 import ViewerControls from '@/components/panorama/viewer-controls'
@@ -11,7 +13,7 @@ import ScenePanel from '@/components/editor/scene-panel'
 import HotspotPanel from '@/components/editor/hotspot-panel'
 import SettingsPanel from '@/components/editor/settings-panel'
 import EditorToolbar from '@/components/editor/editor-toolbar'
-import type { Hotspot, HotspotPosition } from '@/lib/tour-types'
+import type { Tour, Hotspot, HotspotPosition } from '@/lib/tour-types'
 import {
   useTour,
   useCurrentScene,
@@ -40,26 +42,93 @@ export default function EditorPage() {
   const [sidebarTab, setSidebarTab] = useState('scenes')
   const [viewportDragOver, setViewportDragOver] = useState(false)
   const viewportFileInputRef = useRef<HTMLInputElement>(null)
+  const searchParams = useSearchParams()
+  const tourDbId = searchParams.get('id')
+  const [dbLoaded, setDbLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<string | null>(null)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const supabase = createClient()
 
-  // Initialize with a blank tour so the user can build their own
+  // Load tour from Supabase if ?id= is present
   useEffect(() => {
-    if (!tour) {
+    if (tourDbId && !dbLoaded) {
+      const loadFromDb = async () => {
+        const { data } = await supabase
+          .from('tours')
+          .select('*')
+          .eq('id', tourDbId)
+          .single()
+        if (data?.tour_data) {
+          loadTour(data.tour_data as unknown as Tour)
+        }
+        setDbLoaded(true)
+      }
+      loadFromDb()
+    } else if (!tourDbId && !tour) {
       const blankTour = initTour('My Virtual Tour', 'An immersive 360 experience')
       loadTour(blankTour)
+      setDbLoaded(true)
     }
-  }, [tour])
+  }, [tourDbId, dbLoaded, supabase, tour])
+
+  // Auto-save to Supabase (debounced)
+  const saveTour = useCallback(
+    async (tourData: Tour) => {
+      setSaving(true)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return
+
+        const payload = {
+          user_id: user.id,
+          name: tourData.name,
+          description: tourData.description || null,
+          tour_data: tourData as unknown as Record<string, unknown>,
+          is_public: tourData.settings?.showSceneList ?? false,
+          scene_count: tourData.scenes.length,
+        }
+
+        if (tourDbId) {
+          await supabase.from('tours').update(payload).eq('id', tourDbId)
+        } else {
+          const { data } = await supabase.from('tours').insert(payload).select('id').single()
+          if (data?.id) {
+            // Update URL without reload
+            window.history.replaceState(null, '', `/editor?id=${data.id}`)
+          }
+        }
+        setLastSaved(new Date().toLocaleTimeString())
+      } finally {
+        setSaving(false)
+      }
+    },
+    [tourDbId, supabase]
+  )
+
+  // Debounced auto-save: triggers 2 seconds after the last change
+  useEffect(() => {
+    if (!tour || !dbLoaded) return
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTour(tour)
+    }, 2000)
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    }
+  }, [tour, dbLoaded, saveTour])
 
   const handleHotspotClick = useCallback(
     (hotspot: Hotspot) => {
       if (editorMode === 'view') {
-        // In view mode, handle the hotspot action
         if (hotspot.type === 'scene-link' && hotspot.targetSceneId) {
           setCurrentScene(hotspot.targetSceneId)
         } else {
           setActivePopup(hotspot)
         }
       } else {
-        // In editor mode, select the hotspot for editing
         selectHotspot(hotspot.id)
         setSidebarTab('hotspots')
       }
@@ -70,13 +139,14 @@ export default function EditorPage() {
   const handleSceneClick = useCallback(
     (position: HotspotPosition) => {
       if (editorMode === 'add-hotspot' && currentSceneId) {
-        const title = addHotspotType === 'scene-link'
-          ? 'Go to scene'
-          : addHotspotType === 'info'
-          ? 'Information'
-          : addHotspotType === 'image'
-          ? 'Image'
-          : 'Content'
+        const title =
+          addHotspotType === 'scene-link'
+            ? 'Go to scene'
+            : addHotspotType === 'info'
+              ? 'Information'
+              : addHotspotType === 'image'
+                ? 'Image'
+                : 'Content'
         addHotspotToScene(currentSceneId, addHotspotType, position, title)
         setSidebarTab('hotspots')
       }
@@ -87,7 +157,6 @@ export default function EditorPage() {
   const handleDropScene = useCallback(
     (droppedSceneId: string, position: HotspotPosition) => {
       if (!currentSceneId || droppedSceneId === currentSceneId) return
-      // Find the target scene name
       const targetScene = tour?.scenes.find((s) => s.id === droppedSceneId)
       const title = targetScene ? `Go to ${targetScene.name}` : 'Go to scene'
       const hotspot = addHotspotToScene(currentSceneId, 'scene-link', position, title)
@@ -116,7 +185,7 @@ export default function EditorPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <EditorToolbar />
+      <EditorToolbar saving={saving} lastSaved={lastSaved} onSaveNow={() => saveTour(tour)} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
@@ -197,12 +266,17 @@ export default function EditorPage() {
           ) : (
             <div
               className={`flex items-center justify-center h-full transition-colors ${viewportDragOver ? 'bg-primary/5' : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setViewportDragOver(true) }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setViewportDragOver(true)
+              }}
               onDragLeave={() => setViewportDragOver(false)}
               onDrop={(e) => {
                 e.preventDefault()
                 setViewportDragOver(false)
-                const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+                const files = Array.from(e.dataTransfer.files).filter((f) =>
+                  f.type.startsWith('image/')
+                )
                 files.forEach((file) => {
                   const url = URL.createObjectURL(file)
                   const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
@@ -246,7 +320,8 @@ export default function EditorPage() {
                     Start building your virtual tour
                   </h3>
                   <p className="text-sm text-muted-foreground mb-6 leading-relaxed text-pretty">
-                    Upload your 360-degree panorama images to create an immersive experience. You can add multiple scenes and connect them with interactive hotspots.
+                    Upload your 360-degree panorama images to create an immersive experience. You can
+                    add multiple scenes and connect them with interactive hotspots.
                   </p>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                     <Button

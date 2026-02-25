@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import {
   Compass,
@@ -332,14 +334,33 @@ export default function ViewerPage() {
   const [showShare, setShowShare] = useState(false)
   const [showScenes, setShowScenes] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const searchParams = useSearchParams()
+  const tourDbId = searchParams.get('id')
+  const supabase = createClient()
+  const [dbLoaded, setDbLoaded] = useState(false)
 
-  // Initialize with demo tour
+  // Load tour from Supabase if ?id= is present, otherwise demo tour
   useEffect(() => {
-    if (!tour) {
+    if (dbLoaded) return
+    if (tourDbId) {
+      const loadFromDb = async () => {
+        const { data } = await supabase
+          .from('tours')
+          .select('*')
+          .eq('id', tourDbId)
+          .single()
+        if (data?.tour_data) {
+          loadTour(data.tour_data as unknown as Tour)
+        }
+        setDbLoaded(true)
+      }
+      loadFromDb()
+    } else if (!tour) {
       const demoTour = createDemoTour()
       loadTour(demoTour)
+      setDbLoaded(true)
     }
-  }, [tour])
+  }, [tourDbId, dbLoaded, supabase, tour])
 
   const handleHotspotClick = useCallback((hotspot: Hotspot) => {
     if (hotspot.type === 'scene-link' && hotspot.targetSceneId) {

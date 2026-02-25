@@ -9,52 +9,11 @@ import {
   Palette,
   Zap,
   Globe,
-  Code,
   ImageIcon,
   Navigation,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-function Navbar() {
-  return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-      <nav className="max-w-7xl mx-auto flex items-center justify-between px-6 h-16">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Compass className="h-4.5 w-4.5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold text-foreground tracking-tight">PanoraVista</span>
-        </Link>
-
-        <div className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Features
-          </a>
-          <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            How It Works
-          </a>
-          <a href="#use-cases" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Use Cases
-          </a>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link href="/editor">
-            <Button variant="ghost" size="sm" className="text-sm">
-              Open Editor
-            </Button>
-          </Link>
-          <Link href="/editor">
-            <Button size="sm" className="text-sm gap-1.5">
-              Get Started
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
-        </div>
-      </nav>
-    </header>
-  )
-}
+import AuthNavbar from '@/components/auth-navbar'
 
 function HeroSection() {
   return (
@@ -82,7 +41,7 @@ function HeroSection() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
-          <Link href="/editor">
+          <Link href="/auth/sign-up">
             <Button size="lg" className="text-base gap-2 h-12 px-8">
               Start Building
               <ArrowRight className="h-4 w-4" />
@@ -322,14 +281,21 @@ function CTASection() {
               Ready to create your first tour?
             </h2>
             <p className="mt-4 text-muted-foreground max-w-md mx-auto text-pretty">
-              Jump into the editor and start building immersive 360-degree experiences right now. No sign-up required.
+              Create an account and start building immersive 360-degree experiences in minutes.
             </p>
-            <Link href="/editor">
-              <Button size="lg" className="mt-8 text-base gap-2 h-12 px-8">
-                Open the Editor
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+              <Link href="/auth/sign-up">
+                <Button size="lg" className="text-base gap-2 h-12 px-8">
+                  Create Free Account
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link href="/auth/login">
+                <Button variant="outline" size="lg" className="text-base h-12 px-8">
+                  Sign In
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -351,11 +317,14 @@ function Footer() {
           Professional 360-degree virtual tour creation platform
         </p>
         <div className="flex items-center gap-6">
-          <Link href="/editor" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Editor
+          <Link href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Dashboard
           </Link>
           <Link href="/viewer" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Viewer
+            Demo
+          </Link>
+          <Link href="/auth/login" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Sign In
           </Link>
         </div>
       </div>
@@ -366,7 +335,7 @@ function Footer() {
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-background">
-      <Navbar />
+      <AuthNavbar />
       <HeroSection />
       <FeaturesSection />
       <HowItWorksSection />
