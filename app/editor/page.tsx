@@ -65,7 +65,6 @@ export default function EditorPage() {
   const [dbLoaded, setDbLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const supabase = createClient()
 
   // Scene picker state: after placing an arrow, show a picker to choose target
@@ -154,16 +153,7 @@ export default function EditorPage() {
     [tourDbId, supabase]
   )
 
-  useEffect(() => {
-    if (!tour || !dbLoaded) return
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    saveTimeoutRef.current = setTimeout(() => {
-      saveTour(tour)
-    }, 2000)
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    }
-  }, [tour, dbLoaded, saveTour])
+  // No auto-save -- user must click "Save" manually
 
   const handleHotspotClick = useCallback(
     (hotspot: Hotspot) => {
