@@ -2,9 +2,24 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Layers, Navigation, Settings, MousePointerClick, Upload, Compass } from 'lucide-react'
+import {
+  Layers,
+  Navigation,
+  Settings,
+  MousePointerClick,
+  Upload,
+  Compass,
+  ArrowUpCircle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import PanoramaViewer from '@/components/panorama/panorama-viewer'
 import HotspotPopup from '@/components/panorama/hotspot-popup'
@@ -27,8 +42,10 @@ import {
   setCurrentScene,
   addHotspotToScene,
   updateHotspot,
+  removeHotspot,
   selectHotspot,
   setEditorMode,
+  setAddHotspotType,
 } from '@/lib/tour-store'
 
 export default function EditorPage() {
@@ -49,6 +66,12 @@ export default function EditorPage() {
   const [lastSaved, setLastSaved] = useState<string | null>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const supabase = createClient()
+
+  // Scene picker state: after placing an arrow, show a picker to choose target
+  const [scenePicker, setScenePicker] = useState<{
+    open: boolean
+    hotspotId: string | null
+  }>({ open: false, hotspotId: null })
 
   // Load tour from Supabase if ?id= is present
   useEffect(() => {
@@ -96,7 +119,6 @@ export default function EditorPage() {
         } else {
           const { data } = await supabase.from('tours').insert(payload).select('id').single()
           if (data?.id) {
-            // Update URL without reload
             window.history.replaceState(null, '', `/editor?id=${data.id}`)
           }
         }
@@ -108,7 +130,6 @@ export default function EditorPage() {
     [tourDbId, supabase]
   )
 
-  // Debounced auto-save: triggers 2 seconds after the last change
   useEffect(() => {
     if (!tour || !dbLoaded) return
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
@@ -147,11 +168,35 @@ export default function EditorPage() {
               : addHotspotType === 'image'
                 ? 'Image'
                 : 'Content'
-        addHotspotToScene(currentSceneId, addHotspotType, position, title)
-        setSidebarTab('hotspots')
+        const hotspot = addHotspotToScene(currentSceneId, addHotspotType, position, title)
+
+        // If scene-link: show scene picker dialog immediately
+        if (addHotspotType === 'scene-link') {
+          setScenePicker({ open: true, hotspotId: hotspot.id })
+        } else {
+          setSidebarTab('hotspots')
+        }
       }
     },
     [editorMode, currentSceneId, addHotspotType]
+  )
+
+  // When a target scene is picked from the dialog
+  const handlePickTargetScene = useCallback(
+    (targetSceneId: string) => {
+      if (!currentSceneId || !scenePicker.hotspotId) return
+      const targetScene = tour?.scenes.find((s) => s.id === targetSceneId)
+      updateHotspot(currentSceneId, scenePicker.hotspotId, {
+        targetSceneId,
+        title: targetScene ? `Go to ${targetScene.name}` : 'Go to scene',
+        icon: 'arrow' as const,
+        color: '#3b82f6',
+      })
+      setScenePicker({ open: false, hotspotId: null })
+      setEditorMode('view')
+      setSidebarTab('hotspots')
+    },
+    [currentSceneId, scenePicker.hotspotId, tour?.scenes]
   )
 
   const handleDropScene = useCallback(
@@ -165,6 +210,7 @@ export default function EditorPage() {
         icon: 'arrow' as const,
         color: '#3b82f6',
       })
+      setEditorMode('view')
       setSidebarTab('hotspots')
     },
     [currentSceneId, tour?.scenes]
@@ -174,6 +220,15 @@ export default function EditorPage() {
     setCurrentScene(sceneId)
     setActivePopup(null)
   }, [])
+
+  // Activate "Place Arrow" mode
+  const handlePlaceArrow = useCallback(() => {
+    setAddHotspotType('scene-link')
+    setEditorMode('add-hotspot')
+  }, [])
+
+  // Available target scenes (all except current)
+  const targetScenes = tour?.scenes.filter((s) => s.id !== currentSceneId) || []
 
   if (!tour) {
     return (
@@ -250,8 +305,52 @@ export default function EditorPage() {
                 />
               )}
 
+              {/* Place Arrow button - floating bottom-center when viewing and has 2+ scenes */}
+              {editorMode === 'view' && targetScenes.length > 0 && (
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
+                  <Button
+                    size="lg"
+                    className="gap-2 shadow-lg shadow-primary/20 h-11 px-6 text-sm"
+                    onClick={handlePlaceArrow}
+                  >
+                    <ArrowUpCircle className="h-4.5 w-4.5" />
+                    Place Navigation Arrow
+                  </Button>
+                </div>
+              )}
+
               {/* Editor mode indicator */}
-              {editorMode !== 'view' && (
+              {editorMode === 'add-hotspot' && addHotspotType === 'scene-link' && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+                  <div className="bg-primary/90 text-primary-foreground px-4 py-2 rounded-full text-xs font-medium backdrop-blur-sm">
+                    Click anywhere on the panorama to place an arrow
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-full h-8 text-xs"
+                    onClick={() => setEditorMode('view')}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              {editorMode === 'add-hotspot' && addHotspotType !== 'scene-link' && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+                  <div className="bg-primary/90 text-primary-foreground px-4 py-2 rounded-full text-xs font-medium backdrop-blur-sm">
+                    Click on the panorama to place a hotspot
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-full h-8 text-xs"
+                    onClick={() => setEditorMode('view')}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              {editorMode !== 'view' && editorMode !== 'add-hotspot' && (
                 <div className="absolute top-3 right-3 z-20">
                   <button
                     onClick={() => setEditorMode('view')}
@@ -342,6 +441,66 @@ export default function EditorPage() {
           )}
         </div>
       </div>
+
+      {/* Scene Picker Dialog - appears after placing an arrow */}
+      <Dialog
+        open={scenePicker.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            // If closed without picking, remove the hotspot we just placed
+            if (scenePicker.hotspotId && currentSceneId) {
+              removeHotspot(currentSceneId, scenePicker.hotspotId)
+            }
+            setScenePicker({ open: false, hotspotId: null })
+            setEditorMode('view')
+          }
+        }}
+      >
+        <DialogContent className="bg-card border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">Select Target Scene</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Which scene should this arrow navigate to?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 max-h-80 overflow-y-auto py-1">
+            {targetScenes.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => handlePickTargetScene(s.id)}
+                className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-left group"
+              >
+                <div className="w-16 h-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                  {s.imageUrl && (
+                    <img
+                      src={s.imageUrl}
+                      alt={s.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
+                    {s.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {s.hotspots.length} hotspot{s.hotspots.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <ArrowUpCircle className="h-5 w-5 text-muted-foreground/30 group-hover:text-primary transition-colors flex-shrink-0" />
+              </button>
+            ))}
+            {targetScenes.length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-sm text-muted-foreground">No other scenes available.</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  Add more scenes first to create navigation arrows.
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
