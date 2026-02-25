@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { SAMPLE_PANORAMAS } from '@/lib/tour-types'
+import { uploadTourImage } from '@/lib/upload-image'
 import {
   useTour,
   useCurrentSceneId,
@@ -53,6 +54,7 @@ export default function ScenePanel() {
   const [previewUrl, setPreviewUrl] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [uploadTab, setUploadTab] = useState<'upload' | 'url' | 'samples'>('upload')
+  const [isUploading, setIsUploading] = useState(false)
   const dropFileInputRef = useRef<HTMLInputElement>(null)
 
   if (!tour) return null
@@ -83,35 +85,52 @@ export default function ScenePanel() {
     setShowAddDialog(false)
   }
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return
-    const url = URL.createObjectURL(file)
-    setSceneUrl(url)
-    setPreviewUrl(url)
+    // Show local preview immediately
+    const localPreview = URL.createObjectURL(file)
+    setPreviewUrl(localPreview)
     if (!sceneName) {
       setSceneName(file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '))
     }
+    // Upload to Supabase Storage for a permanent URL
+    setIsUploading(true)
+    try {
+      const permanentUrl = await uploadTourImage(file, 'scenes')
+      setSceneUrl(permanentUrl)
+    } catch {
+      setSceneUrl(localPreview)
+    } finally {
+      setIsUploading(false)
+    }
   }
 
-  const handleMultiFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMultiFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     if (files.length === 1) {
       processFile(files[0])
       return
     }
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return
-      const url = URL.createObjectURL(file)
+    setIsUploading(true)
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue
       const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
-      addScene(name, url)
-    })
+      try {
+        const url = await uploadTourImage(file, 'scenes')
+        addScene(name, url)
+      } catch {
+        const url = URL.createObjectURL(file)
+        addScene(name, url)
+      }
+    }
+    setIsUploading(false)
     resetDialog()
     setShowAddDialog(false)
   }
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault()
       setDragOver(false)
       const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
@@ -120,11 +139,18 @@ export default function ScenePanel() {
         processFile(files[0])
         return
       }
-      files.forEach((file) => {
-        const url = URL.createObjectURL(file)
+      setIsUploading(true)
+      for (const file of files) {
         const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
-        addScene(name, url)
-      })
+        try {
+          const url = await uploadTourImage(file, 'scenes')
+          addScene(name, url)
+        } catch {
+          const url = URL.createObjectURL(file)
+          addScene(name, url)
+        }
+      }
+      setIsUploading(false)
       if (showAddDialog) {
         resetDialog()
         setShowAddDialog(false)
@@ -341,7 +367,9 @@ export default function ScenePanel() {
               {previewUrl && (
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" onClick={() => { setPreviewUrl(''); setSceneUrl(''); setSceneName('') }}>Clear</Button>
-                  <Button onClick={handleAddScene} disabled={!sceneName || !sceneUrl}>Add Scene</Button>
+                  <Button onClick={handleAddScene} disabled={!sceneName || !sceneUrl || isUploading}>
+                    {isUploading ? 'Uploading...' : 'Add Scene'}
+                  </Button>
                 </div>
               )}
             </div>

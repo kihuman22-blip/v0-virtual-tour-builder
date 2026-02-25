@@ -265,7 +265,7 @@ export function createDemoTour(): Tour {
     title: 'Go to Office',
     targetSceneId: scene2.id,
     icon: 'arrow',
-    color: '#3b82f6',
+    color: '#4db8a4',
   }
 
   // Add info hotspot to scene1
@@ -287,7 +287,7 @@ export function createDemoTour(): Tour {
     title: 'Visit Gallery',
     targetSceneId: scene3.id,
     icon: 'arrow',
-    color: '#3b82f6',
+    color: '#4db8a4',
   }
 
   // Scene2 -> Scene1
@@ -298,7 +298,7 @@ export function createDemoTour(): Tour {
     title: 'Back to Lobby',
     targetSceneId: scene1.id,
     icon: 'arrow',
-    color: '#3b82f6',
+    color: '#4db8a4',
   }
 
   // Scene3 -> Scene1
@@ -309,7 +309,7 @@ export function createDemoTour(): Tour {
     title: 'Return to Lobby',
     targetSceneId: scene1.id,
     icon: 'arrow',
-    color: '#3b82f6',
+    color: '#4db8a4',
   }
 
   // Info hotspot on scene3

@@ -29,6 +29,7 @@ import HotspotPanel from '@/components/editor/hotspot-panel'
 import SettingsPanel from '@/components/editor/settings-panel'
 import EditorToolbar from '@/components/editor/editor-toolbar'
 import type { Tour, Hotspot, HotspotPosition } from '@/lib/tour-types'
+import { uploadTourImage, isBlobUrl, persistBlobUrl } from '@/lib/upload-image'
 import {
   useTour,
   useCurrentScene,
@@ -95,7 +96,7 @@ export default function EditorPage() {
     }
   }, [tourDbId, dbLoaded, supabase, tour])
 
-  // Auto-save to Supabase (debounced)
+  // Auto-save to Supabase (debounced) -- persists any remaining blob URLs first
   const saveTour = useCallback(
     async (tourData: Tour) => {
       setSaving(true)
@@ -105,13 +106,36 @@ export default function EditorPage() {
         } = await supabase.auth.getUser()
         if (!user) return
 
+        // Persist any blob URLs to Supabase Storage before saving
+        const persistedScenes = await Promise.all(
+          tourData.scenes.map(async (scene) => {
+            let imageUrl = scene.imageUrl
+            if (isBlobUrl(imageUrl)) {
+              imageUrl = await persistBlobUrl(imageUrl, 'scenes')
+            }
+            const persistedHotspots = await Promise.all(
+              scene.hotspots.map(async (h) => {
+                if (h.imageUrl && isBlobUrl(h.imageUrl)) {
+                  return { ...h, imageUrl: await persistBlobUrl(h.imageUrl, 'hotspots') }
+                }
+                return h
+              })
+            )
+            return { ...scene, imageUrl, hotspots: persistedHotspots }
+          })
+        )
+        const persistedTour = { ...tourData, scenes: persistedScenes }
+
+        // Update local store with persisted URLs so the viewer never sees blob URLs
+        loadTour(persistedTour)
+
         const payload = {
           user_id: user.id,
-          name: tourData.name,
-          description: tourData.description || null,
-          tour_data: tourData as unknown as Record<string, unknown>,
-          is_public: tourData.settings?.showSceneList ?? false,
-          scene_count: tourData.scenes.length,
+          name: persistedTour.name,
+          description: persistedTour.description || null,
+          tour_data: persistedTour as unknown as Record<string, unknown>,
+          is_public: persistedTour.settings?.showSceneList ?? false,
+          scene_count: persistedTour.scenes.length,
         }
 
         if (tourDbId) {
@@ -190,7 +214,7 @@ export default function EditorPage() {
         targetSceneId,
         title: targetScene ? `Go to ${targetScene.name}` : 'Go to scene',
         icon: 'arrow' as const,
-        color: '#3b82f6',
+        color: '#4db8a4',
       })
       setScenePicker({ open: false, hotspotId: null })
       setEditorMode('view')
@@ -217,7 +241,7 @@ export default function EditorPage() {
       updateHotspot(currentSceneId, hotspot.id, {
         targetSceneId: droppedSceneId,
         icon: 'arrow' as const,
-        color: '#3b82f6',
+        color: '#4db8a4',
       })
       setEditorMode('view')
       setSidebarTab('hotspots')
@@ -377,17 +401,22 @@ export default function EditorPage() {
                 setViewportDragOver(true)
               }}
               onDragLeave={() => setViewportDragOver(false)}
-              onDrop={(e) => {
+              onDrop={async (e) => {
                 e.preventDefault()
                 setViewportDragOver(false)
                 const files = Array.from(e.dataTransfer.files).filter((f) =>
                   f.type.startsWith('image/')
                 )
-                files.forEach((file) => {
-                  const url = URL.createObjectURL(file)
+                for (const file of files) {
                   const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
-                  addScene(name, url)
-                })
+                  try {
+                    const url = await uploadTourImage(file, 'scenes')
+                    addScene(name, url)
+                  } catch {
+                    const url = URL.createObjectURL(file)
+                    addScene(name, url)
+                  }
+                }
               }}
             >
               <input
@@ -396,15 +425,20 @@ export default function EditorPage() {
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const files = e.target.files
                   if (!files) return
-                  Array.from(files).forEach((file) => {
-                    if (!file.type.startsWith('image/')) return
-                    const url = URL.createObjectURL(file)
+                  for (const file of Array.from(files)) {
+                    if (!file.type.startsWith('image/')) continue
                     const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
-                    addScene(name, url)
-                  })
+                    try {
+                      const url = await uploadTourImage(file, 'scenes')
+                      addScene(name, url)
+                    } catch {
+                      const url = URL.createObjectURL(file)
+                      addScene(name, url)
+                    }
+                  }
                 }}
               />
               {viewportDragOver ? (

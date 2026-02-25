@@ -12,11 +12,11 @@ import {
   Copy,
   Check,
   Code,
-  X,
   Download,
   ArrowLeft,
-  Layers,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,7 +28,6 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import PanoramaViewer from '@/components/panorama/panorama-viewer'
-import HotspotPopup from '@/components/panorama/hotspot-popup'
 import type { Tour, Hotspot, Scene } from '@/lib/tour-types'
 import {
   useTour,
@@ -40,185 +39,51 @@ import {
   exportTour,
 } from '@/lib/tour-store'
 
-function ViewerHeader({
-  tourName,
-  onShare,
-  onBack,
-  onFullscreen,
-  isFullscreen,
+/* ------------------------------------------------------------------ */
+/*  Inline Hotspot Detail (for info / image / content hotspots)       */
+/* ------------------------------------------------------------------ */
+function HotspotDetail({
+  hotspot,
+  onClose,
 }: {
-  tourName: string
-  onShare: () => void
-  onBack: () => void
-  onFullscreen: () => void
-  isFullscreen: boolean
+  hotspot: Hotspot
+  onClose: () => void
 }) {
   return (
-    <header className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-background/80 via-background/40 to-transparent pointer-events-none">
-      <div className="flex items-center gap-3 pointer-events-auto">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link href="/">
-              <Button variant="secondary" size="icon" className="h-9 w-9 bg-secondary/80 backdrop-blur-sm">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent>Back to home</TooltipContent>
-        </Tooltip>
-        <div className="flex items-center gap-2 bg-secondary/80 backdrop-blur-sm rounded-lg px-3 py-1.5">
-          <Compass className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold text-secondary-foreground">{tourName}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-1.5 pointer-events-auto">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-9 w-9 bg-secondary/80 backdrop-blur-sm"
-              onClick={onShare}
-            >
-              <Share2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Share tour</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-9 w-9 bg-secondary/80 backdrop-blur-sm"
-              onClick={onFullscreen}
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</TooltipContent>
-        </Tooltip>
-      </div>
-    </header>
-  )
-}
+    <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none animate-in fade-in-0 duration-200">
+      <div className="pointer-events-auto bg-card/95 backdrop-blur-xl border border-border rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Image */}
+        {hotspot.type === 'image' && hotspot.imageUrl && (
+          <div className="w-full max-h-72 overflow-hidden">
+            <img
+              src={hotspot.imageUrl}
+              alt={hotspot.title}
+              className="w-full h-full object-cover"
+              crossOrigin="anonymous"
+            />
+          </div>
+        )}
 
-function SceneStrip({
-  scenes,
-  currentSceneId,
-  onSceneChange,
-  visible,
-  onToggle,
-}: {
-  scenes: Scene[]
-  currentSceneId: string
-  onSceneChange: (id: string) => void
-  visible: boolean
-  onToggle: () => void
-}) {
-  if (scenes.length <= 1) return null
-
-  return (
-    <>
-      {/* Toggle button */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="bg-secondary/80 backdrop-blur-sm gap-1.5 text-xs"
-          onClick={onToggle}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          {visible ? 'Hide Scenes' : 'Show Scenes'}
-          <ChevronUp className={`h-3 w-3 transition-transform ${visible ? '' : 'rotate-180'}`} />
-        </Button>
-      </div>
-
-      {/* Strip */}
-      {visible && (
-        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-secondary/80 backdrop-blur-xl rounded-xl p-2 border border-border/50 max-w-[90vw] overflow-x-auto animate-in slide-in-from-bottom-4 duration-300">
-          {scenes.map((scene) => (
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h3 className="font-semibold text-card-foreground text-base leading-tight">{hotspot.title}</h3>
             <button
-              key={scene.id}
-              onClick={() => onSceneChange(scene.id)}
-              className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-                scene.id === currentSceneId
-                  ? 'border-primary ring-2 ring-primary/30 scale-105'
-                  : 'border-transparent hover:border-muted-foreground/30 opacity-70 hover:opacity-100'
-              }`}
+              onClick={onClose}
+              className="flex-shrink-0 h-7 w-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-24 h-14 bg-muted relative">
-                <img
-                  src={scene.imageUrl}
-                  alt={scene.name}
-                  className="w-full h-full object-cover"
-                  crossOrigin="anonymous"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/70 to-transparent" />
-                <span className="absolute bottom-1 left-1.5 text-[10px] font-medium text-foreground truncate max-w-[84px]">
-                  {scene.name}
-                </span>
-              </div>
+              <X className="h-3.5 w-3.5" />
             </button>
-          ))}
-        </div>
-      )}
-    </>
-  )
-}
+          </div>
 
-function BottomBar({
-  scenes,
-  currentSceneId,
-  onSceneChange,
-}: {
-  scenes: Scene[]
-  currentSceneId: string
-  onSceneChange: (id: string) => void
-}) {
-  const currentIndex = scenes.findIndex((s) => s.id === currentSceneId)
-  const prevScene = currentIndex > 0 ? scenes[currentIndex - 1] : null
-  const nextScene = currentIndex < scenes.length - 1 ? scenes[currentIndex + 1] : null
-  const currentScene = scenes.find((s) => s.id === currentSceneId)
-
-  return (
-    <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
-      <div className="flex items-center justify-between px-4 py-4 bg-gradient-to-t from-background/80 via-background/40 to-transparent">
-        {/* Prev */}
-        <div className="pointer-events-auto">
-          {prevScene ? (
-            <button
-              onClick={() => onSceneChange(prevScene.id)}
-              className="flex items-center gap-2 bg-secondary/80 backdrop-blur-sm rounded-lg px-3 py-2 hover:bg-secondary transition-colors"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-secondary-foreground">{prevScene.name}</span>
-            </button>
-          ) : (
-            <div />
+          {hotspot.description && (
+            <p className="text-sm text-muted-foreground leading-relaxed">{hotspot.description}</p>
           )}
-        </div>
 
-        {/* Current info */}
-        <div className="text-center pointer-events-auto">
-          <p className="text-sm font-medium text-foreground">{currentScene?.name}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Scene {currentIndex + 1} of {scenes.length}
-          </p>
-        </div>
-
-        {/* Next */}
-        <div className="pointer-events-auto">
-          {nextScene ? (
-            <button
-              onClick={() => onSceneChange(nextScene.id)}
-              className="flex items-center gap-2 bg-secondary/80 backdrop-blur-sm rounded-lg px-3 py-2 hover:bg-secondary transition-colors"
-            >
-              <span className="text-xs text-secondary-foreground">{nextScene.name}</span>
-              <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
-            </button>
-          ) : (
-            <div />
+          {hotspot.type === 'content' && hotspot.content && (
+            <div
+              className="text-sm text-muted-foreground leading-relaxed mt-2 prose prose-sm prose-invert max-w-none"
+              dangerouslySetInnerHTML={{ __html: hotspot.content }}
+            />
           )}
         </div>
       </div>
@@ -226,6 +91,9 @@ function BottomBar({
   )
 }
 
+/* ------------------------------------------------------------------ */
+/*  Share Dialog                                                       */
+/* ------------------------------------------------------------------ */
 function ShareDialog({
   open,
   onClose,
@@ -236,8 +104,7 @@ function ShareDialog({
   tour: Tour
 }) {
   const [copied, setCopied] = useState<string | null>(null)
-
-  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/viewer` : '/viewer'
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '/viewer'
   const embedCode = `<iframe src="${shareUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`
 
   const handleCopy = async (text: string, key: string) => {
@@ -245,9 +112,7 @@ function ShareDialog({
       await navigator.clipboard.writeText(text)
       setCopied(key)
       setTimeout(() => setCopied(null), 2000)
-    } catch {
-      // fallback
-    }
+    } catch { /* ignore */ }
   }
 
   const handleExportJson = () => {
@@ -270,27 +135,18 @@ function ShareDialog({
             Share your virtual tour or embed it on your website.
           </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-5">
-          {/* URL */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tour Link</label>
             <div className="flex items-center gap-2">
               <div className="flex-1 bg-secondary rounded-lg px-3 py-2 text-sm text-secondary-foreground font-mono truncate">
                 {shareUrl}
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="flex-shrink-0"
-                onClick={() => handleCopy(shareUrl, 'url')}
-              >
-                {copied === 'url' ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
+              <Button variant="outline" size="icon" className="flex-shrink-0" onClick={() => handleCopy(shareUrl, 'url')}>
+                {copied === 'url' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
-
-          {/* Embed */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               <Code className="h-3 w-3 inline mr-1" />
@@ -300,18 +156,11 @@ function ShareDialog({
               <div className="flex-1 bg-secondary rounded-lg px-3 py-2 text-xs text-muted-foreground font-mono break-all max-h-20 overflow-y-auto">
                 {embedCode}
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="flex-shrink-0 mt-0.5"
-                onClick={() => handleCopy(embedCode, 'embed')}
-              >
-                {copied === 'embed' ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
+              <Button variant="outline" size="icon" className="flex-shrink-0 mt-0.5" onClick={() => handleCopy(embedCode, 'embed')}>
+                {copied === 'embed' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
-
-          {/* Export JSON */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Export</label>
             <Button variant="outline" className="w-full gap-2" onClick={handleExportJson}>
@@ -325,6 +174,9 @@ function ShareDialog({
   )
 }
 
+/* ------------------------------------------------------------------ */
+/*  Main Viewer Page                                                   */
+/* ------------------------------------------------------------------ */
 export default function ViewerPage() {
   const tour = useTour()
   const currentScene = useCurrentScene()
@@ -332,14 +184,13 @@ export default function ViewerPage() {
   const [activePopup, setActivePopup] = useState<Hotspot | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showShare, setShowShare] = useState(false)
-  const [showScenes, setShowScenes] = useState(false)
+  const [showSceneStrip, setShowSceneStrip] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const searchParams = useSearchParams()
   const tourDbId = searchParams.get('id')
   const supabase = createClient()
   const [dbLoaded, setDbLoaded] = useState(false)
 
-  // Load tour from Supabase if ?id= is present, otherwise demo tour
   useEffect(() => {
     if (dbLoaded) return
     if (tourDbId) {
@@ -379,7 +230,6 @@ export default function ViewerPage() {
   const handleFullscreen = useCallback(() => {
     const el = containerRef.current
     if (!el) return
-
     if (!document.fullscreenElement) {
       el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
     } else {
@@ -387,11 +237,8 @@ export default function ViewerPage() {
     }
   }, [])
 
-  // Listen for fullscreen change
   useEffect(() => {
-    const handler = () => {
-      setIsFullscreen(!!document.fullscreenElement)
-    }
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', handler)
     return () => document.removeEventListener('fullscreenchange', handler)
   }, [])
@@ -407,10 +254,15 @@ export default function ViewerPage() {
     )
   }
 
+  const scenes = tour.scenes
+  const currentIndex = scenes.findIndex((s) => s.id === currentSceneId)
+  const prevScene = currentIndex > 0 ? scenes[currentIndex - 1] : null
+  const nextScene = currentIndex < scenes.length - 1 ? scenes[currentIndex + 1] : null
+
   return (
     <TooltipProvider>
       <div ref={containerRef} className="h-screen w-screen bg-background relative overflow-hidden">
-        {/* Panorama viewer fills the entire screen */}
+        {/* Panorama -- fills the entire screen */}
         <PanoramaViewer
           scene={currentScene}
           fov={tour.settings.defaultFov}
@@ -422,45 +274,140 @@ export default function ViewerPage() {
           allScenes={tour.scenes}
         />
 
-        {/* Overlay UI */}
-        <ViewerHeader
-          tourName={tour.name}
-          onShare={() => setShowShare(true)}
-          onBack={() => {}}
-          onFullscreen={handleFullscreen}
-          isFullscreen={isFullscreen}
-        />
+        {/* Top bar -- transparent gradient overlay */}
+        <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-background/70 to-transparent pointer-events-none">
+          <div className="flex items-center gap-2.5 pointer-events-auto">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground hover:bg-card/80">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>Back to home</TooltipContent>
+            </Tooltip>
+            <div className="flex items-center gap-2 bg-card/60 backdrop-blur-md border border-border/50 rounded-lg px-3 py-1.5">
+              <Compass className="h-3.5 w-3.5 text-primary" />
+              <span className="text-sm font-medium text-foreground">{tour.name}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 pointer-events-auto">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground hover:bg-card/80" onClick={() => setShowShare(true)}>
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Share tour</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 bg-card/60 backdrop-blur-md border border-border/50 text-foreground hover:bg-card/80" onClick={handleFullscreen}>
+                  {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</TooltipContent>
+            </Tooltip>
+          </div>
+        </header>
 
-        <BottomBar
-          scenes={tour.scenes}
-          currentSceneId={currentSceneId}
-          onSceneChange={handleSceneChange}
-        />
+        {/* Bottom bar -- scene nav */}
+        <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+          <div className="flex items-end justify-between px-4 pb-4 bg-gradient-to-t from-background/70 via-background/30 to-transparent pt-16">
+            {/* Previous scene */}
+            <div className="pointer-events-auto">
+              {prevScene ? (
+                <button
+                  onClick={() => handleSceneChange(prevScene.id)}
+                  className="flex items-center gap-2 bg-card/60 backdrop-blur-md border border-border/50 rounded-lg px-3 py-2 hover:bg-card/80 transition-colors"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs text-foreground max-w-24 truncate">{prevScene.name}</span>
+                </button>
+              ) : <div className="w-20" />}
+            </div>
 
-        <SceneStrip
-          scenes={tour.scenes}
-          currentSceneId={currentSceneId}
-          onSceneChange={handleSceneChange}
-          visible={showScenes}
-          onToggle={() => setShowScenes(!showScenes)}
-        />
+            {/* Center: current scene info + scene strip toggle */}
+            <div className="flex flex-col items-center gap-2 pointer-events-auto">
+              {/* Scene strip */}
+              {showSceneStrip && scenes.length > 1 && (
+                <div className="flex items-center gap-1.5 bg-card/80 backdrop-blur-xl rounded-xl p-1.5 border border-border/50 max-w-[80vw] overflow-x-auto animate-in slide-in-from-bottom-2 duration-200">
+                  {scenes.map((scene) => (
+                    <button
+                      key={scene.id}
+                      onClick={() => handleSceneChange(scene.id)}
+                      className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
+                        scene.id === currentSceneId
+                          ? 'border-primary scale-105 shadow-lg'
+                          : 'border-transparent opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <div className="w-20 h-12 bg-muted relative">
+                        {scene.imageUrl && (
+                          <img
+                            src={scene.imageUrl}
+                            alt={scene.name}
+                            className="w-full h-full object-cover"
+                            crossOrigin="anonymous"
+                            loading="lazy"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                        <span className="absolute bottom-0.5 left-1 right-1 text-[9px] font-medium text-foreground truncate">
+                          {scene.name}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-        {/* Hotspot popup */}
+              {/* Scene info + toggle */}
+              <div className="flex items-center gap-2">
+                {scenes.length > 1 && (
+                  <button
+                    onClick={() => setShowSceneStrip(!showSceneStrip)}
+                    className="bg-card/60 backdrop-blur-md border border-border/50 rounded-lg px-3 py-1.5 hover:bg-card/80 transition-colors"
+                  >
+                    <span className="text-[10px] text-muted-foreground">
+                      {showSceneStrip ? 'Hide scenes' : `${scenes.length} scenes`}
+                    </span>
+                  </button>
+                )}
+                <div className="bg-card/60 backdrop-blur-md border border-border/50 rounded-lg px-3 py-1.5 text-center">
+                  <p className="text-xs font-medium text-foreground">{currentScene.name}</p>
+                  {scenes.length > 1 && (
+                    <p className="text-[10px] text-muted-foreground">{currentIndex + 1} / {scenes.length}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Next scene */}
+            <div className="pointer-events-auto">
+              {nextScene ? (
+                <button
+                  onClick={() => handleSceneChange(nextScene.id)}
+                  className="flex items-center gap-2 bg-card/60 backdrop-blur-md border border-border/50 rounded-lg px-3 py-2 hover:bg-card/80 transition-colors"
+                >
+                  <span className="text-xs text-foreground max-w-24 truncate">{nextScene.name}</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              ) : <div className="w-20" />}
+            </div>
+          </div>
+        </div>
+
+        {/* Hotspot detail popup */}
         {activePopup && (
-          <HotspotPopup
-            hotspot={activePopup}
-            onClose={() => setActivePopup(null)}
-            onNavigate={(sceneId) => {
-              setCurrentScene(sceneId)
-              setActivePopup(null)
-            }}
-          />
+          <HotspotDetail hotspot={activePopup} onClose={() => setActivePopup(null)} />
         )}
 
         {/* Share dialog */}
         <ShareDialog open={showShare} onClose={() => setShowShare(false)} tour={tour} />
 
-        {/* Instructions overlay on first load */}
+        {/* First-load instructions */}
         <ViewerInstructions />
       </div>
     </TooltipProvider>
@@ -471,29 +418,21 @@ function ViewerInstructions() {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(false), 5000)
+    const timer = setTimeout(() => setVisible(false), 4000)
     return () => clearTimeout(timer)
   }, [])
 
   if (!visible) return null
 
   return (
-    <div
-      className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none animate-in fade-in-0 duration-500"
-      style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.5s' }}
-    >
-      <div className="bg-card/90 backdrop-blur-xl border border-border rounded-xl px-6 py-4 text-center pointer-events-auto shadow-2xl max-w-sm mx-4 animate-in zoom-in-95 duration-300">
+    <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none animate-in fade-in-0 duration-500">
+      <div className="bg-card/90 backdrop-blur-xl border border-border rounded-2xl px-6 py-5 text-center pointer-events-auto shadow-2xl max-w-sm mx-4 animate-in zoom-in-95 duration-300">
         <Compass className="h-8 w-8 text-primary mx-auto mb-3" />
         <h3 className="text-sm font-semibold text-card-foreground mb-1">Explore the Tour</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-          Drag to look around. Click hotspots to navigate between scenes or view information. Scroll to zoom.
+        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+          Drag to look around. Click hotspots to navigate or view details. Scroll to zoom.
         </p>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="text-xs"
-          onClick={() => setVisible(false)}
-        >
+        <Button size="sm" variant="secondary" className="text-xs" onClick={() => setVisible(false)}>
           Got it
         </Button>
       </div>

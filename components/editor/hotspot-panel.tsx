@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import type { Hotspot } from '@/lib/tour-types'
+import { uploadTourImage } from '@/lib/upload-image'
 import {
   useTour,
   useCurrentScene,
@@ -41,7 +42,7 @@ const HOTSPOT_TYPES: { type: Hotspot['type']; label: string; icon: React.ReactNo
   { type: 'content', label: 'Content', icon: <FileText className="h-4 w-4" />, desc: 'Rich text content' },
 ]
 
-const HOTSPOT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#8B2020', '#ffffff']
+const HOTSPOT_COLORS = ['#4db8a4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#8B2020', '#ffffff']
 
 const ICON_OPTIONS: { value: Hotspot['icon']; label: string }[] = [
   { value: 'info', label: 'Info' },
@@ -62,12 +63,18 @@ export default function HotspotPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
-  const handleImageUpload = (file: File) => {
+  const handleImageUpload = async (file: File) => {
     if (!currentSceneId || !selectedHotspot) return
     setUploading(true)
-    const url = URL.createObjectURL(file)
-    updateHotspot(currentSceneId, selectedHotspot.id, { imageUrl: url })
-    setUploading(false)
+    try {
+      const url = await uploadTourImage(file, 'hotspots')
+      updateHotspot(currentSceneId, selectedHotspot.id, { imageUrl: url })
+    } catch {
+      const url = URL.createObjectURL(file)
+      updateHotspot(currentSceneId, selectedHotspot.id, { imageUrl: url })
+    } finally {
+      setUploading(false)
+    }
   }
 
   if (!tour || !currentScene || !currentSceneId) {
