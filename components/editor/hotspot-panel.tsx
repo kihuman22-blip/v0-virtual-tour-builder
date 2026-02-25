@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   ArrowRight,
   Info,
@@ -9,6 +9,7 @@ import {
   Trash2,
   Navigation,
   MousePointerClick,
+  Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,11 +37,19 @@ import {
 const HOTSPOT_TYPES: { type: Hotspot['type']; label: string; icon: React.ReactNode; desc: string }[] = [
   { type: 'scene-link', label: 'Scene Link', icon: <ArrowRight className="h-4 w-4" />, desc: 'Navigate to another scene' },
   { type: 'info', label: 'Info', icon: <Info className="h-4 w-4" />, desc: 'Display text information' },
-  { type: 'image', label: 'Image', icon: <ImageIcon className="h-4 w-4" />, desc: 'Show an image popup' },
+  { type: 'image', label: 'Image', icon: <ImageIcon className="h-4 w-4" />, desc: 'Show an image' },
   { type: 'content', label: 'Content', icon: <FileText className="h-4 w-4" />, desc: 'Rich text content' },
 ]
 
-const HOTSPOT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#ffffff']
+const HOTSPOT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#8B2020', '#ffffff']
+
+const ICON_OPTIONS: { value: Hotspot['icon']; label: string }[] = [
+  { value: 'info', label: 'Info' },
+  { value: 'image', label: 'Image' },
+  { value: 'eye', label: 'Eye' },
+  { value: 'link', label: 'Link' },
+  { value: 'arrow', label: 'Arrow' },
+]
 
 export default function HotspotPanel() {
   const tour = useTour()
@@ -50,6 +59,16 @@ export default function HotspotPanel() {
   const selectedHotspotId = useSelectedHotspotId()
   const editorMode = useEditorMode()
   const addHotspotType = useAddHotspotType()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const handleImageUpload = (file: File) => {
+    if (!currentSceneId || !selectedHotspot) return
+    setUploading(true)
+    const url = URL.createObjectURL(file)
+    updateHotspot(currentSceneId, selectedHotspot.id, { imageUrl: url })
+    setUploading(false)
+  }
 
   if (!tour || !currentScene || !currentSceneId) {
     return (
@@ -70,10 +89,13 @@ export default function HotspotPanel() {
         </div>
         <div className="p-3 space-y-2">
           {HOTSPOT_TYPES.map((ht) => (
-            <button
+            <div
               key={ht.type}
+              role="button"
+              tabIndex={0}
               onClick={() => setAddHotspotType(ht.type)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAddHotspotType(ht.type) } }}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left cursor-pointer ${
                 addHotspotType === ht.type
                   ? 'border-primary/50 bg-primary/10'
                   : 'border-border hover:bg-secondary'
@@ -88,7 +110,7 @@ export default function HotspotPanel() {
                 <p className="text-xs font-medium text-foreground">{ht.label}</p>
                 <p className="text-[10px] text-muted-foreground">{ht.desc}</p>
               </div>
-            </button>
+            </div>
           ))}
         </div>
         <div className="p-3 mt-auto border-t border-border">
@@ -145,6 +167,30 @@ export default function HotspotPanel() {
               </Select>
             </div>
 
+            {/* Icon picker (for non-scene-link) */}
+            {selectedHotspot.type !== 'scene-link' && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Icon</Label>
+                <Select
+                  value={selectedHotspot.icon || 'info'}
+                  onValueChange={(val) =>
+                    updateHotspot(currentSceneId, selectedHotspot.id, { icon: val as Hotspot['icon'] })
+                  }
+                >
+                  <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ICON_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value!}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Target scene (for scene-link) */}
             {selectedHotspot.type === 'scene-link' && (
               <div>
@@ -161,9 +207,9 @@ export default function HotspotPanel() {
                   <SelectContent>
                     {tour.scenes
                       .filter((s) => s.id !== currentSceneId)
-                      .map((scene) => (
-                        <SelectItem key={scene.id} value={scene.id}>
-                          {scene.name}
+                      .map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -184,18 +230,62 @@ export default function HotspotPanel() {
               />
             </div>
 
-            {/* Image URL (for image type) */}
+            {/* Image upload (for image type) */}
             {selectedHotspot.type === 'image' && (
               <div>
-                <Label className="text-xs text-muted-foreground">Image URL</Label>
-                <Input
-                  value={selectedHotspot.imageUrl || ''}
-                  onChange={(e) =>
-                    updateHotspot(currentSceneId, selectedHotspot.id, { imageUrl: e.target.value })
-                  }
-                  className="mt-1 h-8 text-sm"
-                  placeholder="https://example.com/image.jpg"
+                <Label className="text-xs text-muted-foreground">Image</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleImageUpload(file)
+                  }}
                 />
+
+                {selectedHotspot.imageUrl ? (
+                  <div className="mt-1.5 space-y-2">
+                    <div className="relative rounded-lg overflow-hidden border border-border">
+                      <img
+                        src={selectedHotspot.imageUrl}
+                        alt="Hotspot image"
+                        className="w-full h-32 object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/0 hover:bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-all">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          Replace
+                        </Button>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs w-full text-destructive hover:text-destructive"
+                      onClick={() => updateHotspot(currentSceneId, selectedHotspot.id, { imageUrl: undefined })}
+                    >
+                      Remove Image
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                    className="mt-1.5 flex flex-col items-center justify-center gap-2 p-6 rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
+                  >
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">{uploading ? 'Uploading...' : 'Click to upload an image'}</span>
+                    <span className="text-[10px] text-muted-foreground/60">JPG, PNG, WebP</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -219,11 +309,14 @@ export default function HotspotPanel() {
               <Label className="text-xs text-muted-foreground">Color</Label>
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 {HOTSPOT_COLORS.map((color) => (
-                  <button
+                  <div
                     key={color}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => updateHotspot(currentSceneId, selectedHotspot.id, { color })}
-                    className={`h-7 w-7 rounded-full border-2 transition-all ${
-                      selectedHotspot.color === color ? 'border-foreground scale-110' : 'border-transparent'
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); updateHotspot(currentSceneId, selectedHotspot.id, { color }) } }}
+                    className={`h-7 w-7 rounded-full border-2 transition-all cursor-pointer ${
+                      selectedHotspot.color === color ? 'border-foreground scale-110' : 'border-transparent hover:scale-105'
                     }`}
                     style={{ backgroundColor: color }}
                   />
@@ -339,10 +432,13 @@ export default function HotspotPanel() {
               )
 
             return (
-              <button
+              <div
                 key={hotspot.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => selectHotspot(hotspot.id)}
-                className={`w-full flex items-center gap-2.5 rounded-lg p-2.5 text-left transition-colors ${
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectHotspot(hotspot.id) } }}
+                className={`w-full flex items-center gap-2.5 rounded-lg p-2.5 text-left transition-colors cursor-pointer ${
                   hotspot.id === selectedHotspotId
                     ? 'bg-primary/10 border border-primary/30'
                     : 'hover:bg-secondary border border-transparent'
@@ -358,7 +454,7 @@ export default function HotspotPanel() {
                   <p className="text-xs font-medium text-foreground truncate">{hotspot.title}</p>
                   <p className="text-[10px] text-muted-foreground capitalize">{hotspot.type.replace('-', ' ')}</p>
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>
