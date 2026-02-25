@@ -277,10 +277,13 @@ export default function PanoramaViewer({
     if (!ps.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
-      ps.hotspotYaw += e.movementX * 0.2
-      ps.hotspotPitch += e.movementY * 0.2
-      ps.hotspotPitch = Math.max(-85, Math.min(85, ps.hotspotPitch))
-      onHotspotMoved(ps.hotspotId, { yaw: ps.hotspotYaw, pitch: ps.hotspotPitch })
+      // Raycast from cursor to sphere -- hotspot follows the cursor directly
+      const pos = screenToYawPitch(e.clientX, e.clientY)
+      if (pos) {
+        ps.hotspotYaw = pos.yaw
+        ps.hotspotPitch = pos.pitch
+        onHotspotMoved(ps.hotspotId, pos)
+      }
     }
 
     if (ps.mode === 'camera' && (e.buttons > 0 || e.pressure > 0)) {
