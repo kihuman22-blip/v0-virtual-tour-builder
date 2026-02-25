@@ -229,8 +229,11 @@ export default function PanoramaViewer({
     const hits = rc.intersectObject(sphere)
     if (hits.length > 0) {
       const pt = hits[0].point
-      const pos = vector3ToYawPitch(pt.x, pt.y, pt.z)
-      return { yaw: -pos.yaw, pitch: pos.pitch }
+      // Sphere is scale(-1,1,1) so hit.x is negated; atan2(-pt.x, pt.z) corrects it
+      const yaw = (Math.atan2(-pt.x, pt.z) * 180) / Math.PI
+      const r = Math.sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z)
+      const pitch = (Math.asin(pt.y / r) * 180) / Math.PI
+      return { yaw, pitch }
     }
     return null
   }, [])
@@ -280,12 +283,29 @@ export default function PanoramaViewer({
     if (!ps.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
-      // Raycast from cursor to the sphere -- hotspot sticks directly to cursor position
-      const pos = screenToYawPitch(e.clientX, e.clientY)
-      if (pos) {
-        ps.hotspotYaw = pos.yaw
-        ps.hotspotPitch = pos.pitch
-        onHotspotMoved(ps.hotspotId, pos)
+      // Inline raycast for precision -- no helper function, no frame delay
+      const cont = canvasContainerRef.current
+      const cam = cameraRef.current
+      const sph = sphereRef.current
+      if (cont && cam && sph) {
+        const rect = cont.getBoundingClientRect()
+        const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
+        const rc = new THREE.Raycaster()
+        rc.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam)
+        const hits = rc.intersectObject(sph)
+        if (hits.length > 0) {
+          const pt = hits[0].point
+          // Sphere is scale(-1,1,1), so hit.x is negated vs world
+          // yawPitchToVector3 uses: x = sin(yaw), z = cos(yaw)
+          // atan2(-pt.x, pt.z) undoes the x flip to get the correct yaw
+          const yaw = (Math.atan2(-pt.x, pt.z) * 180) / Math.PI
+          const r = Math.sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z)
+          const pitch = (Math.asin(pt.y / r) * 180) / Math.PI
+          ps.hotspotYaw = yaw
+          ps.hotspotPitch = pitch
+          onHotspotMoved(ps.hotspotId, { yaw, pitch })
+        }
       }
     }
 
