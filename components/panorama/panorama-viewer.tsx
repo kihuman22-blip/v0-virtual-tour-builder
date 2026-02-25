@@ -59,7 +59,7 @@ export default function PanoramaViewer({
     if (!container) return
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(container.clientWidth, container.clientHeight)
     renderer.outputColorSpace = THREE.SRGBColorSpace
     container.appendChild(renderer.domElement)
@@ -72,7 +72,7 @@ export default function PanoramaViewer({
     const threeScene = new THREE.Scene()
     threeSceneRef.current = threeScene
 
-    const geometry = new THREE.SphereGeometry(500, 60, 40)
+    const geometry = new THREE.SphereGeometry(500, 128, 80)
     geometry.scale(-1, 1, 1)
     const material = new THREE.MeshBasicMaterial({ color: 0x111111 })
     const sphere = new THREE.Mesh(geometry, material)
@@ -110,6 +110,15 @@ export default function PanoramaViewer({
     img.onload = () => {
       const texture = new THREE.Texture(img)
       texture.colorSpace = THREE.SRGBColorSpace
+      // Use linear filtering for maximum sharpness - no mipmap downscaling
+      texture.minFilter = THREE.LinearFilter
+      texture.magFilter = THREE.LinearFilter
+      texture.generateMipmaps = false
+      // Max anisotropy for sharpness at steep angles
+      const renderer = rendererRef.current
+      if (renderer) {
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      }
       texture.needsUpdate = true
 
       if (currentTextureRef.current) {
