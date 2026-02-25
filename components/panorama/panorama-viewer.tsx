@@ -51,10 +51,12 @@ export default function PanoramaViewer({
   const rotationRef = useRef({ yaw: scene.initialViewDirection.yaw, pitch: scene.initialViewDirection.pitch })
   const targetRotationRef = useRef({ yaw: scene.initialViewDirection.yaw, pitch: scene.initialViewDirection.pitch })
 
-  // Hotspot drag refs
+  // Hotspot drag refs -- drag uses delta-based yaw/pitch movement like camera, not raycast
   const draggingHotspotId = useRef<string | null>(null)
   const dragDidMove = useRef(false)
   const dragPointerStart = useRef({ x: 0, y: 0 })
+  const dragHotspotPos = useRef({ yaw: 0, pitch: 0 })
+  const dragPointerId = useRef<number | null>(null)
 
   // DOM refs for each hotspot element -- direct DOM manipulation, no React re-renders
   const hotspotElementsRef = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -258,7 +260,7 @@ export default function PanoramaViewer({
     []
   )
 
-  // ---- Camera pointer events ----
+  // ---- Camera pointer down ----
   const onCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     if (draggingHotspotId.current) return
     isDraggingCamera.current = false
@@ -266,21 +268,86 @@ export default function PanoramaViewer({
     canvasContainerRef.current?.setPointerCapture(e.pointerId)
   }, [])
 
-  const onCanvasPointerMove = useCallback((e: React.PointerEvent) => {
-    if (draggingHotspotId.current) return
-    const dx = e.clientX - cameraPointerStart.current.x
-    const dy = e.clientY - cameraPointerStart.current.y
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) isDraggingCamera.current = true
-    if (e.buttons > 0) {
-      targetRotationRef.current.yaw += dx * 0.2
-      targetRotationRef.current.pitch += dy * 0.2
-    }
-    cameraPointerStart.current = { x: e.clientX, y: e.clientY }
+  const onCanvasWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const camera = cameraRef.current
+    if (!camera) return
+    camera.fov = Math.max(30, Math.min(100, camera.fov + e.deltaY * 0.05))
+    camera.updateProjectionMatrix()
   }, [])
 
-  const onCanvasPointerUp = useCallback(
+  // ---- Hotspot pointer events: delta-based drag like camera movement ----
+  // Capture on the full container so the pointer never escapes
+  const onHotspotDown = useCallback((e: React.PointerEvent, hotspot: Hotspot) => {
+    e.stopPropagation()
+    e.preventDefault()
+    draggingHotspotId.current = hotspot.id
+    dragDidMove.current = false
+    dragPointerStart.current = { x: e.clientX, y: e.clientY }
+    dragHotspotPos.current = { yaw: hotspot.position.yaw, pitch: hotspot.position.pitch }
+    dragPointerId.current = e.pointerId
+    // Capture on the large container so the mouse never leaves
+    containerRef.current?.setPointerCapture(e.pointerId)
+  }, [])
+
+  // This runs on the container, not the tiny hotspot div
+  const onContainerPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (draggingHotspotId.current) return
+      // If dragging a hotspot, move the hotspot. Otherwise move the camera.
+      if (draggingHotspotId.current && onHotspotMoved) {
+        e.stopPropagation()
+        e.preventDefault()
+
+        const dx = e.clientX - dragPointerStart.current.x
+        const dy = e.clientY - dragPointerStart.current.y
+        if (!dragDidMove.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+          dragDidMove.current = true
+        }
+        if (dragDidMove.current) {
+          // Move hotspot by pointer delta -- same feel as camera dragging
+          const deltaX = e.movementX
+          const deltaY = e.movementY
+          dragHotspotPos.current.yaw += deltaX * 0.2
+          dragHotspotPos.current.pitch += deltaY * 0.2
+          dragHotspotPos.current.pitch = Math.max(-85, Math.min(85, dragHotspotPos.current.pitch))
+          onHotspotMoved(draggingHotspotId.current, {
+            yaw: dragHotspotPos.current.yaw,
+            pitch: dragHotspotPos.current.pitch,
+          })
+        }
+        return
+      }
+
+      // Camera movement
+      if (e.buttons === 0) return
+      const dx = e.clientX - cameraPointerStart.current.x
+      const dy = e.clientY - cameraPointerStart.current.y
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) isDraggingCamera.current = true
+      if (e.buttons > 0) {
+        targetRotationRef.current.yaw += dx * 0.2
+        targetRotationRef.current.pitch += dy * 0.2
+      }
+      cameraPointerStart.current = { x: e.clientX, y: e.clientY }
+    },
+    [onHotspotMoved]
+  )
+
+  const onContainerPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      // Hotspot drag end
+      if (draggingHotspotId.current) {
+        containerRef.current?.releasePointerCapture(e.pointerId)
+        if (!dragDidMove.current && onHotspotClick) {
+          const hotspot = sceneRef.current.hotspots.find((h) => h.id === draggingHotspotId.current)
+          if (hotspot) onHotspotClick(hotspot)
+        }
+        draggingHotspotId.current = null
+        dragDidMove.current = false
+        dragPointerId.current = null
+        return
+      }
+
+      // Camera drag end
       canvasContainerRef.current?.releasePointerCapture(e.pointerId)
       if (isDraggingCamera.current) {
         isDraggingCamera.current = false
@@ -291,60 +358,7 @@ export default function PanoramaViewer({
         if (pos) onSceneClick(pos)
       }
     },
-    [isEditorMode, onSceneClick, screenToYawPitch]
-  )
-
-  const onCanvasWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-    const camera = cameraRef.current
-    if (!camera) return
-    camera.fov = Math.max(30, Math.min(100, camera.fov + e.deltaY * 0.05))
-    camera.updateProjectionMatrix()
-  }, [])
-
-  // ---- Hotspot pointer events (drag to move) ----
-  const onHotspotDown = useCallback((e: React.PointerEvent, hotspotId: string) => {
-    e.stopPropagation()
-    e.preventDefault()
-    draggingHotspotId.current = hotspotId
-    dragDidMove.current = false
-    dragPointerStart.current = { x: e.clientX, y: e.clientY }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }, [])
-
-  const onHotspotMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!draggingHotspotId.current || !onHotspotMoved) return
-      e.stopPropagation()
-      e.preventDefault()
-
-      const dx = e.clientX - dragPointerStart.current.x
-      const dy = e.clientY - dragPointerStart.current.y
-      if (!dragDidMove.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-        dragDidMove.current = true
-      }
-
-      if (dragDidMove.current) {
-        const pos = screenToYawPitch(e.clientX, e.clientY)
-        if (pos) onHotspotMoved(draggingHotspotId.current, pos)
-      }
-    },
-    [onHotspotMoved, screenToYawPitch]
-  )
-
-  const onHotspotUp = useCallback(
-    (e: React.PointerEvent, hotspot: Hotspot) => {
-      ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-      e.stopPropagation()
-      e.preventDefault()
-
-      if (!dragDidMove.current && onHotspotClick) {
-        onHotspotClick(hotspot)
-      }
-      draggingHotspotId.current = null
-      dragDidMove.current = false
-    },
-    [onHotspotClick]
+    [isEditorMode, onSceneClick, onHotspotClick, screenToYawPitch]
   )
 
   // ---- Drag & drop (scene linking) ----
@@ -384,14 +398,14 @@ export default function PanoramaViewer({
       ref={containerRef}
       className={`relative w-full h-full overflow-hidden select-none ${className}`}
       style={{ touchAction: 'none' }}
+      onPointerMove={onContainerPointerMove}
+      onPointerUp={onContainerPointerUp}
     >
       {/* Three.js canvas */}
       <div
         ref={canvasContainerRef}
         className="absolute inset-0"
         onPointerDown={onCanvasPointerDown}
-        onPointerMove={onCanvasPointerMove}
-        onPointerUp={onCanvasPointerUp}
         onWheel={onCanvasWheel}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -417,9 +431,7 @@ export default function PanoramaViewer({
                 willChange: 'transform, left, top',
                 zIndex: isSelected ? 20 : 10,
               }}
-              onPointerDown={canDrag ? (e) => onHotspotDown(e, hotspot.id) : undefined}
-              onPointerMove={canDrag ? onHotspotMove : undefined}
-              onPointerUp={canDrag ? (e) => onHotspotUp(e, hotspot) : undefined}
+              onPointerDown={canDrag ? (e) => onHotspotDown(e, hotspot) : undefined}
               onClick={!canDrag ? (e) => { e.stopPropagation(); onHotspotClick?.(hotspot) } : undefined}
             >
               {hotspot.type === 'scene-link' ? (
