@@ -167,18 +167,11 @@ export default function EditorPage() {
 
   const handleHotspotClick = useCallback(
     (hotspot: Hotspot) => {
-      if (editorMode === 'view') {
-        if (hotspot.type === 'scene-link' && hotspot.targetSceneId) {
-          setCurrentScene(hotspot.targetSceneId)
-        } else {
-          setActivePopup(hotspot)
-        }
-      } else {
-        selectHotspot(hotspot.id)
-        setSidebarTab('hotspots')
-      }
+      // In the editor, clicking a hotspot always selects it for editing
+      selectHotspot(hotspot.id)
+      setSidebarTab('hotspots')
     },
-    [editorMode]
+    []
   )
 
   const handleSceneClick = useCallback(
