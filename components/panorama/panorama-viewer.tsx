@@ -391,7 +391,7 @@ export default function PanoramaViewer({
 
     if (e.buttons > 0) {
       targetRotationRef.current.yaw += dx * 0.2
-      targetRotationRef.current.pitch -= dy * 0.2
+      targetRotationRef.current.pitch += dy * 0.2
       targetRotationRef.current.pitch = Math.max(-85, Math.min(85, targetRotationRef.current.pitch))
     }
 
