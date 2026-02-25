@@ -199,6 +199,15 @@ export default function EditorPage() {
     [currentSceneId, scenePicker.hotspotId, tour?.scenes]
   )
 
+  // Hotspot reposition via drag
+  const handleHotspotMoved = useCallback(
+    (hotspotId: string, newPosition: HotspotPosition) => {
+      if (!currentSceneId) return
+      updateHotspot(currentSceneId, hotspotId, { position: newPosition })
+    },
+    [currentSceneId]
+  )
+
   const handleDropScene = useCallback(
     (droppedSceneId: string, position: HotspotPosition) => {
       if (!currentSceneId || droppedSceneId === currentSceneId) return
@@ -282,6 +291,7 @@ export default function EditorPage() {
                 autoRotate={tour.settings.autoRotate}
                 autoRotateSpeed={tour.settings.autoRotateSpeed}
                 onHotspotClick={handleHotspotClick}
+                onHotspotMoved={handleHotspotMoved}
                 onSceneClick={handleSceneClick}
                 onDropScene={handleDropScene}
                 isEditorMode={editorMode === 'add-hotspot'}

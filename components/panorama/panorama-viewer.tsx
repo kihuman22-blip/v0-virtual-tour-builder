@@ -11,6 +11,7 @@ interface PanoramaViewerProps {
   autoRotate?: boolean
   autoRotateSpeed?: number
   onHotspotClick?: (hotspot: Hotspot) => void
+  onHotspotMoved?: (hotspotId: string, newPosition: HotspotPosition) => void
   onSceneClick?: (position: HotspotPosition) => void
   onViewChange?: (yaw: number, pitch: number) => void
   onDropScene?: (sceneId: string, position: HotspotPosition) => void
@@ -26,6 +27,7 @@ export default function PanoramaViewer({
   autoRotate = false,
   autoRotateSpeed = 0.5,
   onHotspotClick,
+  onHotspotMoved,
   onSceneClick,
   onDropScene,
   isEditorMode = false,
@@ -39,7 +41,6 @@ export default function PanoramaViewer({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const threeSceneRef = useRef<THREE.Scene | null>(null)
   const sphereRef = useRef<THREE.Mesh | null>(null)
-  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster())
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2())
   const isDraggingRef = useRef(false)
   const previousMouseRef = useRef({ x: 0, y: 0 })
@@ -49,8 +50,12 @@ export default function PanoramaViewer({
   const currentTextureRef = useRef<THREE.Texture | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDragOverViewer, setIsDragOverViewer] = useState(false)
-  // For projecting hotspot 3D positions to 2D screen coords
   const [hotspotScreenPositions, setHotspotScreenPositions] = useState<Map<string, { x: number; y: number; visible: boolean; scale: number }>>(new Map())
+
+  // For hotspot dragging
+  const [draggingHotspotId, setDraggingHotspotId] = useState<string | null>(null)
+  const hotspotDragStartRef = useRef<{ x: number; y: number } | null>(null)
+  const hotspotDidMoveRef = useRef(false)
 
   // Initialize Three.js
   useEffect(() => {
@@ -132,7 +137,7 @@ export default function PanoramaViewer({
     }
   }, [fov])
 
-  // Animation loop - also projects hotspot positions to screen
+  // Animation loop
   useEffect(() => {
     const renderer = rendererRef.current
     const camera = cameraRef.current
@@ -144,7 +149,6 @@ export default function PanoramaViewer({
 
     const animate = () => {
       frameIdRef.current = requestAnimationFrame(animate)
-
       const now = performance.now()
       const delta = (now - lastTime) / 1000
       lastTime = now
@@ -171,7 +175,7 @@ export default function PanoramaViewer({
       camera.lookAt(lookAt)
       renderer.render(threeScene, camera)
 
-      // Project hotspot positions to screen coordinates
+      // Project hotspot positions to screen
       const width = container.clientWidth
       const height = container.clientHeight
       const newPositions = new Map<string, { x: number; y: number; visible: boolean; scale: number }>()
@@ -183,11 +187,9 @@ export default function PanoramaViewer({
 
         const x = (vec.x * 0.5 + 0.5) * width
         const y = (-vec.y * 0.5 + 0.5) * height
-        const visible = vec.z < 1 // behind camera check
+        const visible = vec.z < 1
 
-        // Scale based on distance feel (perspective)
         const scale = Math.max(0.5, Math.min(1.3, 1.0 / Math.max(0.5, Math.abs(vec.z))))
-
         newPositions.set(hotspot.id, { x, y, visible, scale })
       })
 
@@ -216,7 +218,7 @@ export default function PanoramaViewer({
     return () => observer.disconnect()
   }, [])
 
-  // Raycast helper
+  // Raycast: screen coords -> yaw/pitch
   const screenToYawPitch = useCallback(
     (clientX: number, clientY: number): HotspotPosition | null => {
       const container = canvasContainerRef.current
@@ -242,7 +244,7 @@ export default function PanoramaViewer({
     []
   )
 
-  // Pointer events on canvas container
+  // Canvas pointer events (pan to look around)
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     isDraggingRef.current = false
     previousMouseRef.current = { x: e.clientX, y: e.clientY }
@@ -276,13 +278,10 @@ export default function PanoramaViewer({
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
       canvasContainerRef.current?.releasePointerCapture(e.pointerId)
-
       if (isDraggingRef.current) {
         isDraggingRef.current = false
         return
       }
-
-      // In editor mode, clicking the panorama places a hotspot
       if (isEditorMode && onSceneClick) {
         const pos = screenToYawPitch(e.clientX, e.clientY)
         if (pos) onSceneClick(pos)
@@ -299,7 +298,7 @@ export default function PanoramaViewer({
     camera.updateProjectionMatrix()
   }, [])
 
-  // Drag-and-drop for scene linking
+  // Drag-and-drop scene linking
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/x-scene-id')) {
       e.preventDefault()
@@ -322,12 +321,61 @@ export default function PanoramaViewer({
     [onDropScene, screenToYawPitch]
   )
 
-  // Handle hotspot click (from the HTML overlay)
+  // Hotspot click
   const handleHotspotElementClick = useCallback(
     (e: React.MouseEvent, hotspot: Hotspot) => {
       e.stopPropagation()
       e.preventDefault()
       if (onHotspotClick) onHotspotClick(hotspot)
+    },
+    [onHotspotClick]
+  )
+
+  // Hotspot dragging to reposition
+  const handleHotspotPointerDown = useCallback(
+    (e: React.PointerEvent, hotspotId: string) => {
+      // Only allow repositioning in editor (not viewer)
+      if (!onHotspotMoved) return
+      e.stopPropagation()
+      e.preventDefault()
+      hotspotDragStartRef.current = { x: e.clientX, y: e.clientY }
+      hotspotDidMoveRef.current = false
+      setDraggingHotspotId(hotspotId)
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [onHotspotMoved]
+  )
+
+  const handleHotspotPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingHotspotId || !hotspotDragStartRef.current) return
+      e.stopPropagation()
+      e.preventDefault()
+      const dx = e.clientX - hotspotDragStartRef.current.x
+      const dy = e.clientY - hotspotDragStartRef.current.y
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        hotspotDidMoveRef.current = true
+      }
+      if (hotspotDidMoveRef.current && onHotspotMoved) {
+        const pos = screenToYawPitch(e.clientX, e.clientY)
+        if (pos) {
+          onHotspotMoved(draggingHotspotId, pos)
+        }
+      }
+    },
+    [draggingHotspotId, onHotspotMoved, screenToYawPitch]
+  )
+
+  const handleHotspotPointerUp = useCallback(
+    (e: React.PointerEvent, hotspot: Hotspot) => {
+      ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+      if (!hotspotDidMoveRef.current && onHotspotClick) {
+        // Was a click, not a drag
+        onHotspotClick(hotspot)
+      }
+      setDraggingHotspotId(null)
+      hotspotDragStartRef.current = null
+      hotspotDidMoveRef.current = false
     },
     [onHotspotClick]
   )
@@ -349,7 +397,7 @@ export default function PanoramaViewer({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        style={{ cursor: 'grab' }}
+        style={{ cursor: isEditorMode ? 'crosshair' : 'grab' }}
       />
 
       {/* HTML overlay for hotspots */}
@@ -359,10 +407,13 @@ export default function PanoramaViewer({
           if (!screenPos || !screenPos.visible) return null
 
           const isSelected = hotspot.id === selectedHotspotId
+          const isDragging = hotspot.id === draggingHotspotId
           const targetScene = allScenes?.find((s) => s.id === hotspot.targetSceneId)
+          const canDrag = !!onHotspotMoved
 
           if (hotspot.type === 'scene-link') {
-            // Floor arrow style
+            const arrowColor = hotspot.color || '#8B2020'
+            // Floor arrow: white circle with thick colored border and chevron inside (like reference image)
             return (
               <div
                 key={hotspot.id}
@@ -371,60 +422,90 @@ export default function PanoramaViewer({
                   left: screenPos.x,
                   top: screenPos.y,
                   transform: `translate(-50%, -50%) scale(${screenPos.scale})`,
-                  zIndex: isSelected ? 20 : 10,
+                  zIndex: isDragging ? 50 : isSelected ? 20 : 10,
                 }}
               >
-                <button
-                  onClick={(e) => handleHotspotElementClick(e, hotspot)}
-                  className="group relative flex flex-col items-center outline-none"
-                  aria-label={hotspot.title}
+                <div
+                  className={`group relative flex flex-col items-center ${canDrag ? 'cursor-grab' : 'cursor-pointer'} ${isDragging ? 'cursor-grabbing' : ''}`}
+                  onPointerDown={(e) => canDrag ? handleHotspotPointerDown(e, hotspot.id) : undefined}
+                  onPointerMove={handleHotspotPointerMove}
+                  onPointerUp={(e) => handleHotspotPointerUp(e, hotspot)}
+                  onClick={(e) => !canDrag ? handleHotspotElementClick(e, hotspot) : undefined}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={hotspot.title || 'Navigation arrow'}
                 >
-                  {/* Arrow circle */}
+                  {/* Outer glow ring */}
+                  <div
+                    className="absolute rounded-full opacity-30 animate-ping"
+                    style={{
+                      width: 72,
+                      height: 72,
+                      top: -4,
+                      left: '50%',
+                      marginLeft: -36,
+                      borderWidth: 2,
+                      borderStyle: 'solid',
+                      borderColor: arrowColor,
+                      animationDuration: '2.5s',
+                    }}
+                  />
+                  {/* Main arrow circle: white bg with thick colored border */}
                   <div
                     className={`
-                      relative w-14 h-14 rounded-full flex items-center justify-center
-                      transition-all duration-200 cursor-pointer
-                      ${isSelected
-                        ? 'ring-4 ring-white/50 scale-110'
-                        : 'group-hover:scale-110 group-hover:ring-4 group-hover:ring-white/30'
-                      }
+                      relative flex items-center justify-center rounded-full
+                      transition-transform duration-150
+                      ${isSelected ? 'scale-110' : 'group-hover:scale-110'}
                     `}
                     style={{
-                      background: `radial-gradient(circle, ${hotspot.color || '#3b82f6'}ee 0%, ${hotspot.color || '#3b82f6'}99 100%)`,
-                      boxShadow: `0 0 24px ${hotspot.color || '#3b82f6'}66, 0 4px 12px rgba(0,0,0,0.4)`,
+                      width: 64,
+                      height: 64,
+                      background: 'rgba(255,255,255,0.95)',
+                      border: `5px solid ${arrowColor}`,
+                      boxShadow: `0 4px 20px rgba(0,0,0,0.4), 0 0 0 2px rgba(255,255,255,0.2)`,
                     }}
                   >
-                    {/* Animated outer ring */}
-                    <div
-                      className="absolute inset-[-6px] rounded-full border-2 opacity-40 animate-ping"
-                      style={{ borderColor: hotspot.color || '#3b82f6', animationDuration: '2s' }}
-                    />
-                    {/* Arrow chevron pointing up = forward */}
+                    {/* Chevron arrow pointing upward */}
                     <svg
-                      width="28"
-                      height="28"
+                      width="32"
+                      height="32"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="white"
-                      strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="drop-shadow-md"
                     >
-                      <path d="M12 19V5" />
-                      <path d="m5 12 7-7 7 7" />
+                      <path
+                        d="M6 15l6-6 6 6"
+                        stroke={arrowColor}
+                        strokeWidth="3"
+                      />
                     </svg>
                   </div>
 
-                  {/* Scene name label */}
+                  {/* Target scene name label */}
                   {targetScene && (
-                    <div className="mt-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 whitespace-nowrap">
+                    <div className="mt-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-sm border border-white/10 whitespace-nowrap">
                       <span className="text-[11px] font-medium text-white/90">
                         {targetScene.name}
                       </span>
                     </div>
                   )}
-                </button>
+
+                  {/* Selected indicator ring */}
+                  {isSelected && (
+                    <div
+                      className="absolute rounded-full pointer-events-none"
+                      style={{
+                        width: 76,
+                        height: 76,
+                        top: -6,
+                        left: '50%',
+                        marginLeft: -38,
+                        border: '2px dashed rgba(255,255,255,0.7)',
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             )
           }
@@ -438,22 +519,24 @@ export default function PanoramaViewer({
                 left: screenPos.x,
                 top: screenPos.y,
                 transform: `translate(-50%, -50%) scale(${screenPos.scale})`,
-                zIndex: isSelected ? 20 : 10,
+                zIndex: isDragging ? 50 : isSelected ? 20 : 10,
               }}
             >
-              <button
-                onClick={(e) => handleHotspotElementClick(e, hotspot)}
-                className="group relative flex flex-col items-center outline-none"
-                aria-label={hotspot.title}
+              <div
+                className={`group relative flex flex-col items-center ${canDrag ? 'cursor-grab' : 'cursor-pointer'} ${isDragging ? 'cursor-grabbing' : ''}`}
+                onPointerDown={(e) => canDrag ? handleHotspotPointerDown(e, hotspot.id) : undefined}
+                onPointerMove={handleHotspotPointerMove}
+                onPointerUp={(e) => handleHotspotPointerUp(e, hotspot)}
+                onClick={(e) => !canDrag ? handleHotspotElementClick(e, hotspot) : undefined}
+                role="button"
+                tabIndex={0}
+                aria-label={hotspot.title || 'Hotspot'}
               >
                 <div
                   className={`
                     w-10 h-10 rounded-full flex items-center justify-center
-                    transition-all duration-200 cursor-pointer
-                    ${isSelected
-                      ? 'ring-4 ring-white/50 scale-110'
-                      : 'group-hover:scale-110 group-hover:ring-4 group-hover:ring-white/30'
-                    }
+                    transition-transform duration-150
+                    ${isSelected ? 'scale-110' : 'group-hover:scale-110'}
                   `}
                   style={{
                     background: `radial-gradient(circle, ${hotspot.color || '#10b981'}ee 0%, ${hotspot.color || '#10b981'}99 100%)`,
@@ -485,7 +568,20 @@ export default function PanoramaViewer({
                     <span className="text-[10px] font-medium text-white/90">{hotspot.title}</span>
                   </div>
                 )}
-              </button>
+                {isSelected && (
+                  <div
+                    className="absolute rounded-full pointer-events-none"
+                    style={{
+                      width: 52,
+                      height: 52,
+                      top: -6,
+                      left: '50%',
+                      marginLeft: -26,
+                      border: '2px dashed rgba(255,255,255,0.7)',
+                    }}
+                  />
+                )}
+              </div>
             </div>
           )
         })}
