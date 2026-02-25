@@ -403,25 +403,21 @@ export default function PanoramaViewer({
                     className={`flex items-center justify-center rounded-full transition-shadow duration-150 ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-black/50' : ''}`}
                     style={{
                       width: 44, height: 44,
-                      background: hotspot.color || '#3b82f6',
-                      boxShadow: `0 4px 20px ${hotspot.color || '#3b82f6'}80, 0 2px 8px rgba(0,0,0,0.4)`,
+                      background: hotspot.color || '#4db8a4',
+                      boxShadow: `0 4px 20px ${hotspot.color || '#4db8a4'}80, 0 2px 8px rgba(0,0,0,0.4)`,
                     }}
                   >
-                    {hotspot.type === 'info' ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    {hotspot.icon === 'eye' ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                    ) : hotspot.icon === 'link' ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     ) : hotspot.type === 'image' ? (
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                     ) : (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/></svg>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                     )}
                   </div>
-                  {/* Image preview below icon */}
-                  {hotspot.type === 'image' && hotspot.imageUrl && (
-                    <div className="mt-2 rounded-lg overflow-hidden border-2 border-white/30 shadow-xl" style={{ maxWidth: 160 }}>
-                      <img src={hotspot.imageUrl} alt={hotspot.title} className="w-full h-auto" crossOrigin="anonymous" />
-                    </div>
-                  )}
-                  {hotspot.title && hotspot.type !== 'image' && (
+                  {hotspot.title && (
                     <div className="mt-1.5 px-2.5 py-0.5 rounded-md bg-black/75 backdrop-blur-sm whitespace-nowrap">
                       <span className="text-[10px] font-medium text-white">{hotspot.title}</span>
                     </div>
