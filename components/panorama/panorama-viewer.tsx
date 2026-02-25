@@ -163,9 +163,12 @@ export default function PanoramaViewer({
         targetRotationRef.current.yaw += autoRotateSpeed * dt * 10
       }
 
-      const t = Math.min(1, dt * 14)
-      rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * t
-      rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * t
+      // Freeze camera lerp while dragging a hotspot so raycast stays stable
+      if (pointerState.current.mode !== 'hotspot') {
+        const t = Math.min(1, dt * 14)
+        rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * t
+        rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * t
+      }
       rotationRef.current.pitch = Math.max(-85, Math.min(85, rotationRef.current.pitch))
       targetRotationRef.current.pitch = Math.max(-85, Math.min(85, targetRotationRef.current.pitch))
 
@@ -277,7 +280,7 @@ export default function PanoramaViewer({
     if (!ps.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
-      // Raycast from cursor to sphere -- hotspot follows the cursor directly
+      // Raycast from cursor to the sphere -- hotspot sticks directly to cursor position
       const pos = screenToYawPitch(e.clientX, e.clientY)
       if (pos) {
         ps.hotspotYaw = pos.yaw
@@ -286,10 +289,11 @@ export default function PanoramaViewer({
       }
     }
 
-    if (ps.mode === 'camera' && (e.buttons > 0 || e.pressure > 0)) {
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) ps.moved = true
-      targetRotationRef.current.yaw += e.movementX * 0.2
-      targetRotationRef.current.pitch += e.movementY * 0.2
+    if (ps.mode === 'camera') {
+      if (e.buttons > 0 || e.pressure > 0) {
+        targetRotationRef.current.yaw += e.movementX * 0.2
+        targetRotationRef.current.pitch += e.movementY * 0.2
+      }
     }
   }, [onHotspotMoved])
 

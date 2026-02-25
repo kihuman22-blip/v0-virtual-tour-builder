@@ -40,6 +40,7 @@ export default function EditorToolbar({ saving, lastSaved, onSaveNow }: EditorTo
   const [showShare, setShowShare] = useState(false)
   const [importJson, setImportJson] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   const handleExport = () => {
     const json = exportTour()
@@ -58,6 +59,18 @@ export default function EditorToolbar({ saving, lastSaved, onSaveNow }: EditorTo
       setShowImport(false)
       setImportJson('')
     }
+  }
+
+  const getTourUrl = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const tourId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null
+    return tourId ? `${origin}/viewer?id=${tourId}` : `${origin}/viewer`
+  }
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(getTourUrl())
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
   }
 
   const handleCopyEmbed = () => {
@@ -190,26 +203,43 @@ export default function EditorToolbar({ saving, lastSaved, onSaveNow }: EditorTo
           <DialogHeader>
             <DialogTitle className="text-card-foreground">Share Tour</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Get an embed code to add this tour to any website.
+              Share a direct link or embed this tour on any website.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
+            {/* Direct link */}
             <div>
-              <Label className="text-xs text-muted-foreground">Embed Code</Label>
-              <div className="relative mt-1.5">
+              <Label className="text-xs font-medium text-foreground">Direct Link</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                Anyone with this link can view the tour.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  className="flex-1 h-9 rounded-md border border-border bg-muted/50 px-3 text-xs font-mono text-foreground focus:outline-none"
+                  value={getTourUrl()}
+                  onFocus={(e) => e.target.select()}
+                />
+                <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs shrink-0" onClick={handleCopyLink}>
+                  {copiedLink ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedLink ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Embed code */}
+            <div>
+              <Label className="text-xs font-medium text-foreground">Embed Code</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                Paste this into your website HTML to embed the tour.
+              </p>
+              <div className="relative">
                 <Textarea
                   readOnly
-                  className="min-h-[80px] font-mono text-xs pr-12"
-                  value={(() => {
-                    const origin =
-                      typeof window !== 'undefined' ? window.location.origin : ''
-                    const tourId =
-                      typeof window !== 'undefined'
-                        ? new URLSearchParams(window.location.search).get('id')
-                        : null
-                    const embedUrl = tourId ? `${origin}/viewer?id=${tourId}` : `${origin}/viewer`
-                    return `<iframe src="${embedUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`
-                  })()}
+                  className="min-h-[72px] font-mono text-xs pr-12"
+                  value={`<iframe src="${getTourUrl()}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`}
                 />
                 <Button
                   variant="ghost"
@@ -225,15 +255,19 @@ export default function EditorToolbar({ saving, lastSaved, onSaveNow }: EditorTo
                 </Button>
               </div>
             </div>
+
+            <div className="h-px bg-border" />
+
+            {/* Export JSON */}
             <div>
-              <Label className="text-xs text-muted-foreground">Export as JSON</Label>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                Download the tour data to share or import later.
+              <Label className="text-xs font-medium text-foreground">Export as JSON</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-1">
+                Download tour data to share or import later.
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-2 text-xs gap-1.5"
+                className="mt-1.5 text-xs gap-1.5"
                 onClick={handleExport}
               >
                 <Download className="h-3.5 w-3.5" />
