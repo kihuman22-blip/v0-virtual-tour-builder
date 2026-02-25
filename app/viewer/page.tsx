@@ -398,6 +398,7 @@ export default function ViewerPage() {
           onHotspotClick={handleHotspotClick}
           isEditorMode={false}
           selectedHotspotId={null}
+          allScenes={tour.scenes}
         />
 
         {/* Overlay UI */}

@@ -11,6 +11,7 @@ import {
   Pencil,
   X,
   FolderOpen,
+  GripVertical,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -234,12 +235,27 @@ export default function ScenePanel() {
             </div>
           )}
 
+          {/* Drag hint */}
+          {tour.scenes.length >= 2 && (
+            <div className="mx-1 mb-1 px-2 py-1.5 rounded-md bg-primary/5 border border-primary/10">
+              <p className="text-[10px] text-primary/80 leading-relaxed">
+                Drag a scene onto the panorama to create a navigation arrow linking to it.
+              </p>
+            </div>
+          )}
+
           {/* Scene list */}
           {tour.scenes.map((scene) => (
             <div
               key={scene.id}
               role="button"
               tabIndex={0}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('application/x-scene-id', scene.id)
+                e.dataTransfer.setData('text/plain', scene.name)
+                e.dataTransfer.effectAllowed = 'link'
+              }}
               onClick={() => setCurrentScene(scene.id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -253,7 +269,8 @@ export default function ScenePanel() {
                   : 'hover:bg-secondary border border-transparent'
               }`}
             >
-              <div className="w-16 h-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
+              <GripVertical className="h-4 w-4 mt-0.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 flex-shrink-0 cursor-grab" />
+              <div className="w-14 h-9 rounded-md overflow-hidden bg-muted flex-shrink-0">
                 <img
                   src={scene.imageUrl}
                   alt={scene.name}

@@ -24,6 +24,7 @@ import {
   addScene,
   setCurrentScene,
   addHotspotToScene,
+  updateHotspot,
   selectHotspot,
   setEditorMode,
 } from '@/lib/tour-store'
@@ -81,6 +82,23 @@ export default function EditorPage() {
       }
     },
     [editorMode, currentSceneId, addHotspotType]
+  )
+
+  const handleDropScene = useCallback(
+    (droppedSceneId: string, position: HotspotPosition) => {
+      if (!currentSceneId || droppedSceneId === currentSceneId) return
+      // Find the target scene name
+      const targetScene = tour?.scenes.find((s) => s.id === droppedSceneId)
+      const title = targetScene ? `Go to ${targetScene.name}` : 'Go to scene'
+      const hotspot = addHotspotToScene(currentSceneId, 'scene-link', position, title)
+      updateHotspot(currentSceneId, hotspot.id, {
+        targetSceneId: droppedSceneId,
+        icon: 'arrow' as const,
+        color: '#3b82f6',
+      })
+      setSidebarTab('hotspots')
+    },
+    [currentSceneId, tour?.scenes]
   )
 
   const handleSceneChange = useCallback((sceneId: string) => {
@@ -141,8 +159,10 @@ export default function EditorPage() {
                 autoRotateSpeed={tour.settings.autoRotateSpeed}
                 onHotspotClick={handleHotspotClick}
                 onSceneClick={handleSceneClick}
+                onDropScene={handleDropScene}
                 isEditorMode={editorMode === 'add-hotspot'}
                 selectedHotspotId={selectedHotspotId}
+                allScenes={tour.scenes}
               />
               <ViewerControls
                 scenes={tour.scenes}

@@ -13,10 +13,11 @@ interface PanoramaViewerProps {
   onHotspotClick?: (hotspot: Hotspot) => void
   onSceneClick?: (position: HotspotPosition) => void
   onViewChange?: (yaw: number, pitch: number) => void
+  onDropScene?: (sceneId: string, position: HotspotPosition) => void
   isEditorMode?: boolean
   selectedHotspotId?: string | null
   className?: string
-  transitionFrom?: string | null
+  allScenes?: Scene[]
 }
 
 export default function PanoramaViewer({
@@ -27,9 +28,11 @@ export default function PanoramaViewer({
   onHotspotClick,
   onSceneClick,
   onViewChange,
+  onDropScene,
   isEditorMode = false,
   selectedHotspotId,
   className = '',
+  allScenes,
 }: PanoramaViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -48,13 +51,13 @@ export default function PanoramaViewer({
   const textureLoaderRef = useRef(new THREE.TextureLoader())
   const currentTextureRef = useRef<THREE.Texture | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isDragOverViewer, setIsDragOverViewer] = useState(false)
 
   // Initialize Three.js scene
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(container.clientWidth, container.clientHeight)
@@ -62,29 +65,24 @@ export default function PanoramaViewer({
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(fov, container.clientWidth / container.clientHeight, 1, 1100)
     camera.target = new THREE.Vector3(0, 0, 0)
     cameraRef.current = camera
 
-    // Scene
     const threeScene = new THREE.Scene()
     threeSceneRef.current = threeScene
 
-    // Panorama sphere
     const geometry = new THREE.SphereGeometry(500, 60, 40)
-    geometry.scale(-1, 1, 1) // Invert for inside view
+    geometry.scale(-1, 1, 1)
     const material = new THREE.MeshBasicMaterial({ color: 0x111111 })
     const sphere = new THREE.Mesh(geometry, material)
     threeScene.add(sphere)
     sphereRef.current = sphere
 
-    // Hotspot group
     const hotspotGroup = new THREE.Group()
     threeScene.add(hotspotGroup)
     hotspotGroupRef.current = hotspotGroup
 
-    // Ambient light (for sprites)
     const ambientLight = new THREE.AmbientLight(0xffffff, 1)
     threeScene.add(ambientLight)
 
@@ -106,7 +104,6 @@ export default function PanoramaViewer({
     if (!sphereRef.current || !scene.imageUrl) return
 
     setIsLoading(true)
-    const loader = textureLoaderRef.current
 
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -134,52 +131,77 @@ export default function PanoramaViewer({
     img.src = scene.imageUrl
   }, [scene.imageUrl])
 
-  // Create hotspot sprites
-  useEffect(() => {
-    const group = hotspotGroupRef.current
-    if (!group) return
+  // Draw an arrow-on-floor sprite for scene-link, or a circle for other types
+  function createHotspotCanvas(hotspot: Hotspot, isSelected: boolean): HTMLCanvasElement {
+    const canvas = document.createElement('canvas')
+    canvas.width = 128
+    canvas.height = 128
+    const ctx = canvas.getContext('2d')!
+    const baseColor = hotspot.color || '#3b82f6'
 
-    // Clear old sprites
-    while (group.children.length > 0) {
-      const child = group.children[0]
-      group.remove(child)
-      if (child instanceof THREE.Sprite) {
-        ;(child.material as THREE.SpriteMaterial).dispose()
-        if ((child.material as THREE.SpriteMaterial).map) {
-          ;(child.material as THREE.SpriteMaterial).map!.dispose()
+    if (hotspot.type === 'scene-link') {
+      // Floor arrow style - a rounded chevron/arrow pointing forward
+      // Outer glow ring
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(64, 64, isSelected ? 58 : 52, 0, Math.PI * 2)
+      ctx.fillStyle = isSelected ? `${baseColor}50` : `${baseColor}20`
+      ctx.fill()
+      ctx.restore()
+
+      // Main disc
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(64, 64, 38, 0, Math.PI * 2)
+      ctx.fillStyle = isSelected ? baseColor : `${baseColor}cc`
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 2.5
+      ctx.stroke()
+      ctx.restore()
+
+      // Arrow chevron pointing upward (which maps to "forward" in the panorama)
+      ctx.save()
+      ctx.translate(64, 60)
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 5
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      ctx.moveTo(-14, 10)
+      ctx.lineTo(0, -10)
+      ctx.lineTo(14, 10)
+      ctx.stroke()
+      ctx.restore()
+
+      // Target scene label
+      if (allScenes && hotspot.targetSceneId) {
+        const targetScene = allScenes.find((s) => s.id === hotspot.targetSceneId)
+        if (targetScene) {
+          ctx.save()
+          ctx.fillStyle = '#ffffff'
+          ctx.font = 'bold 11px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'top'
+          ctx.fillText(targetScene.name.slice(0, 12), 64, 104)
+          ctx.restore()
         }
       }
-    }
-    hotspotSpritesRef.current.clear()
-
-    // Create new sprites for each hotspot
-    scene.hotspots.forEach((hotspot) => {
-      const canvas = document.createElement('canvas')
-      canvas.width = 128
-      canvas.height = 128
-      const ctx = canvas.getContext('2d')!
-
-      const isSelected = hotspot.id === selectedHotspotId
-      const baseColor = hotspot.color || '#3b82f6'
-
-      // Outer ring with pulse
+    } else {
+      // Existing circle style for non-link hotspots
       ctx.beginPath()
       ctx.arc(64, 64, isSelected ? 56 : 48, 0, Math.PI * 2)
       ctx.fillStyle = isSelected ? `${baseColor}40` : `${baseColor}25`
       ctx.fill()
 
-      // Main circle
       ctx.beginPath()
       ctx.arc(64, 64, 32, 0, Math.PI * 2)
       ctx.fillStyle = isSelected ? baseColor : `${baseColor}cc`
       ctx.fill()
-
-      // Border
       ctx.strokeStyle = '#ffffff'
       ctx.lineWidth = 3
       ctx.stroke()
 
-      // Icon
       ctx.fillStyle = '#ffffff'
       ctx.font = 'bold 24px sans-serif'
       ctx.textAlign = 'center'
@@ -193,7 +215,31 @@ export default function PanoramaViewer({
         eye: '\u25C9',
       }
       ctx.fillText(iconMap[hotspot.icon || 'info'] || 'i', 64, 64)
+    }
 
+    return canvas
+  }
+
+  // Create hotspot sprites
+  useEffect(() => {
+    const group = hotspotGroupRef.current
+    if (!group) return
+
+    while (group.children.length > 0) {
+      const child = group.children[0]
+      group.remove(child)
+      if (child instanceof THREE.Sprite) {
+        ;(child.material as THREE.SpriteMaterial).dispose()
+        if ((child.material as THREE.SpriteMaterial).map) {
+          ;(child.material as THREE.SpriteMaterial).map!.dispose()
+        }
+      }
+    }
+    hotspotSpritesRef.current.clear()
+
+    scene.hotspots.forEach((hotspot) => {
+      const isSelected = hotspot.id === selectedHotspotId
+      const canvas = createHotspotCanvas(hotspot, isSelected)
       const texture = new THREE.CanvasTexture(canvas)
       const material = new THREE.SpriteMaterial({
         map: texture,
@@ -204,13 +250,17 @@ export default function PanoramaViewer({
 
       const pos = yawPitchToVector3(hotspot.position.yaw, hotspot.position.pitch, 480)
       sprite.position.set(pos.x, pos.y, pos.z)
-      sprite.scale.set(50, 50, 1)
+
+      // Scene-link arrows are a bit bigger
+      const scale = hotspot.type === 'scene-link' ? 60 : 50
+      sprite.scale.set(scale, scale, 1)
       sprite.userData = { hotspotId: hotspot.id }
 
       group.add(sprite)
       hotspotSpritesRef.current.set(hotspot.id, sprite)
     })
-  }, [scene.hotspots, selectedHotspotId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene.hotspots, selectedHotspotId, allScenes])
 
   // Update FOV
   useEffect(() => {
@@ -236,21 +286,17 @@ export default function PanoramaViewer({
       const delta = (now - lastTime) / 1000
       lastTime = now
 
-      // Smooth camera rotation
       if (!isDraggingRef.current && autoRotate) {
         targetRotationRef.current.yaw += autoRotateSpeed * delta * 10
       }
 
-      // Lerp towards target
       const lerpFactor = Math.min(1, delta * 8)
       rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * lerpFactor
       rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * lerpFactor
 
-      // Clamp pitch
       rotationRef.current.pitch = Math.max(-85, Math.min(85, rotationRef.current.pitch))
       targetRotationRef.current.pitch = Math.max(-85, Math.min(85, targetRotationRef.current.pitch))
 
-      // Update camera
       const yawRad = THREE.MathUtils.degToRad(rotationRef.current.yaw)
       const pitchRad = THREE.MathUtils.degToRad(rotationRef.current.pitch)
 
@@ -262,9 +308,10 @@ export default function PanoramaViewer({
 
       camera.lookAt(lookAt)
 
-      // Animate hotspot sprites (pulse effect)
-      hotspotSpritesRef.current.forEach((sprite) => {
-        const baseScale = 50
+      // Pulse effect for hotspot sprites
+      hotspotSpritesRef.current.forEach((sprite, id) => {
+        const hs = scene.hotspots.find((h) => h.id === id)
+        const baseScale = hs?.type === 'scene-link' ? 60 : 50
         const pulse = Math.sin(now * 0.003) * 3
         sprite.scale.set(baseScale + pulse, baseScale + pulse, 1)
       })
@@ -277,7 +324,7 @@ export default function PanoramaViewer({
     return () => {
       cancelAnimationFrame(frameIdRef.current)
     }
-  }, [autoRotate, autoRotateSpeed])
+  }, [autoRotate, autoRotateSpeed, scene.hotspots])
 
   // Handle resize
   useEffect(() => {
@@ -298,7 +345,33 @@ export default function PanoramaViewer({
     return () => observer.disconnect()
   }, [])
 
-  // Mouse/touch interaction handlers
+  // Get a yaw/pitch from a mouse/screen position via raycasting the sphere
+  const screenToYawPitch = useCallback(
+    (clientX: number, clientY: number): HotspotPosition | null => {
+      const container = containerRef.current
+      const camera = cameraRef.current
+      const sphere = sphereRef.current
+      if (!container || !camera || !sphere) return null
+
+      const rect = container.getBoundingClientRect()
+      const mouse = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+      )
+      const rc = new THREE.Raycaster()
+      rc.setFromCamera(mouse, camera)
+      const hits = rc.intersectObject(sphere)
+      if (hits.length > 0) {
+        const point = hits[0].point
+        const pos = vector3ToYawPitch(point.x, point.y, point.z)
+        return { yaw: -pos.yaw, pitch: pos.pitch }
+      }
+      return null
+    },
+    []
+  )
+
+  // Pointer events
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     isDraggingRef.current = false
     previousMouseRef.current = { x: e.clientX, y: e.clientY }
@@ -324,7 +397,6 @@ export default function PanoramaViewer({
 
     previousMouseRef.current = { x: e.clientX, y: e.clientY }
 
-    // Update mouse for raycasting
     const container = containerRef.current
     if (container) {
       const rect = container.getBoundingClientRect()
@@ -345,7 +417,6 @@ export default function PanoramaViewer({
         return
       }
 
-      // Raycast to check for hotspot clicks
       const camera = cameraRef.current
       const hotspotGroup = hotspotGroupRef.current
       if (!camera || !hotspotGroup) return
@@ -363,7 +434,6 @@ export default function PanoramaViewer({
           }
         }
       } else if (isEditorMode && onSceneClick) {
-        // In editor mode, clicking on the panorama adds a hotspot
         raycasterRef.current.setFromCamera(mouseRef.current, camera)
         const sphereMesh = sphereRef.current
         if (sphereMesh) {
@@ -371,7 +441,6 @@ export default function PanoramaViewer({
           if (intersects.length > 0) {
             const point = intersects[0].point
             const pos = vector3ToYawPitch(point.x, point.y, point.z)
-            // Invert yaw because sphere is inverted
             onSceneClick({ yaw: -pos.yaw, pitch: pos.pitch })
           }
         }
@@ -380,16 +449,43 @@ export default function PanoramaViewer({
     [scene.hotspots, onHotspotClick, isEditorMode, onSceneClick]
   )
 
-  // Scroll to zoom
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const camera = cameraRef.current
+    if (!camera) return
+    camera.fov = Math.max(30, Math.min(100, camera.fov + e.deltaY * 0.05))
+    camera.updateProjectionMatrix()
+  }, [])
+
+  // Drag-and-drop scene from sidebar onto the viewer
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    const sceneId = e.dataTransfer.types.includes('application/x-scene-id')
+    if (sceneId) {
       e.preventDefault()
-      const camera = cameraRef.current
-      if (!camera) return
-      camera.fov = Math.max(30, Math.min(100, camera.fov + e.deltaY * 0.05))
-      camera.updateProjectionMatrix()
+      e.dataTransfer.dropEffect = 'link'
+      setIsDragOverViewer(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOverViewer(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      setIsDragOverViewer(false)
+
+      const sceneId = e.dataTransfer.getData('application/x-scene-id')
+      if (!sceneId || !onDropScene) return
+
+      // Compute yaw/pitch from drop position
+      const pos = screenToYawPitch(e.clientX, e.clientY)
+      if (pos) {
+        onDropScene(sceneId, pos)
+      }
     },
-    []
+    [onDropScene, screenToYawPitch]
   )
 
   return (
@@ -400,6 +496,9 @@ export default function PanoramaViewer({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onWheel={handleWheel}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab', touchAction: 'none' }}
     >
       {isLoading && (
@@ -413,6 +512,21 @@ export default function PanoramaViewer({
       {isEditorMode && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm">
           Click on the panorama to place a hotspot
+        </div>
+      )}
+      {isDragOverViewer && (
+        <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+          <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg" />
+          <div className="relative bg-card/95 backdrop-blur-xl border border-primary/50 rounded-xl px-6 py-4 shadow-2xl text-center">
+            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                <path d="M12 5v14" />
+                <path d="m5 12 7-7 7 7" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-foreground">Drop here to create arrow link</p>
+            <p className="text-xs text-muted-foreground mt-0.5">A navigation arrow will be placed at this spot</p>
+          </div>
         </div>
       )}
     </div>
