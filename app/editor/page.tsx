@@ -315,25 +315,48 @@ export default function EditorPage() {
                 />
               )}
 
-              {/* Place Arrow button - floating bottom-center when viewing and has 2+ scenes */}
-              {editorMode === 'view' && targetScenes.length > 0 && (
+              {/* Floating bottom toolbar - add hotspot buttons */}
+              {editorMode === 'view' && currentScene && (
                 <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
-                  <Button
-                    size="lg"
-                    className="gap-2 shadow-lg shadow-primary/20 h-11 px-6 text-sm"
-                    onClick={handlePlaceArrow}
-                  >
-                    <ArrowUpCircle className="h-4.5 w-4.5" />
-                    Place Navigation Arrow
-                  </Button>
+                  <div className="flex items-center gap-1 bg-card/90 backdrop-blur-xl border border-border rounded-xl px-2 py-1.5 shadow-2xl">
+                    {targetScenes.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-xs h-8 px-3"
+                        onClick={() => { setAddHotspotType('scene-link'); setEditorMode('add-hotspot') }}
+                      >
+                        <ArrowUpCircle className="h-3.5 w-3.5" />
+                        Arrow
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-xs h-8 px-3"
+                      onClick={() => { setAddHotspotType('info'); setEditorMode('add-hotspot') }}
+                    >
+                      <MousePointerClick className="h-3.5 w-3.5" />
+                      Info
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-xs h-8 px-3"
+                      onClick={() => { setAddHotspotType('image'); setEditorMode('add-hotspot') }}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Image
+                    </Button>
+                  </div>
                 </div>
               )}
 
               {/* Editor mode indicator */}
-              {editorMode === 'add-hotspot' && addHotspotType === 'scene-link' && (
+              {editorMode === 'add-hotspot' && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
                   <div className="bg-primary/90 text-primary-foreground px-4 py-2 rounded-full text-xs font-medium backdrop-blur-sm">
-                    Click anywhere on the panorama to place an arrow
+                    {addHotspotType === 'scene-link' ? 'Click to place a navigation arrow' : `Click to place a ${addHotspotType} hotspot`}
                   </div>
                   <Button
                     variant="secondary"
@@ -343,32 +366,6 @@ export default function EditorPage() {
                   >
                     Cancel
                   </Button>
-                </div>
-              )}
-              {editorMode === 'add-hotspot' && addHotspotType !== 'scene-link' && (
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-                  <div className="bg-primary/90 text-primary-foreground px-4 py-2 rounded-full text-xs font-medium backdrop-blur-sm">
-                    Click on the panorama to place a hotspot
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-full h-8 text-xs"
-                    onClick={() => setEditorMode('view')}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {editorMode !== 'view' && editorMode !== 'add-hotspot' && (
-                <div className="absolute top-3 right-3 z-20">
-                  <button
-                    onClick={() => setEditorMode('view')}
-                    className="flex items-center gap-1.5 bg-card/90 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <MousePointerClick className="h-3.5 w-3.5" />
-                    Exit edit mode
-                  </button>
                 </div>
               )}
             </>
