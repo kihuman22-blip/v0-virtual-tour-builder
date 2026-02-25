@@ -106,10 +106,13 @@ export default function ScenePanel() {
             </div>
           )}
           {tour.scenes.map((scene, index) => (
-            <button
+            <div
               key={scene.id}
+              role="button"
+              tabIndex={0}
               onClick={() => setCurrentScene(scene.id)}
-              className={`w-full group flex items-start gap-2 rounded-lg p-2 text-left transition-colors ${
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCurrentScene(scene.id) } }}
+              className={`w-full group flex items-start gap-2 rounded-lg p-2 text-left transition-colors cursor-pointer ${
                 scene.id === currentSceneId
                   ? 'bg-primary/10 border border-primary/30'
                   : 'hover:bg-secondary border border-transparent'
@@ -175,7 +178,7 @@ export default function ScenePanel() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </button>
+            </div>
           ))}
         </div>
       </ScrollArea>
