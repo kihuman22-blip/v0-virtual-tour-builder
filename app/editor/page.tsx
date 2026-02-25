@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback } from 'react'
-import { Layers, Navigation, Settings, MousePointerClick } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { Layers, Navigation, Settings, MousePointerClick, Upload, Compass } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PanoramaViewer from '@/components/panorama/panorama-viewer'
 import HotspotPopup from '@/components/panorama/hotspot-popup'
@@ -18,12 +19,13 @@ import {
   useEditorMode,
   useAddHotspotType,
   useSelectedHotspotId,
+  initTour,
   loadTour,
+  addScene,
   setCurrentScene,
   addHotspotToScene,
   selectHotspot,
   setEditorMode,
-  createDemoTour,
 } from '@/lib/tour-store'
 
 export default function EditorPage() {
@@ -35,12 +37,14 @@ export default function EditorPage() {
   const selectedHotspotId = useSelectedHotspotId()
   const [activePopup, setActivePopup] = useState<Hotspot | null>(null)
   const [sidebarTab, setSidebarTab] = useState('scenes')
+  const [viewportDragOver, setViewportDragOver] = useState(false)
+  const viewportFileInputRef = useRef<HTMLInputElement>(null)
 
-  // Initialize with demo tour
+  // Initialize with a blank tour so the user can build their own
   useEffect(() => {
     if (!tour) {
-      const demoTour = createDemoTour()
-      loadTour(demoTour)
+      const blankTour = initTour('My Virtual Tour', 'An immersive 360 experience')
+      loadTour(blankTour)
     }
   }, [tour])
 
@@ -171,14 +175,74 @@ export default function EditorPage() {
               )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Layers className="h-16 w-16 mx-auto text-muted-foreground/30 mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-1">No scene selected</h3>
-                <p className="text-sm text-muted-foreground">
-                  Add a panorama scene from the left panel to get started
-                </p>
-              </div>
+            <div
+              className={`flex items-center justify-center h-full transition-colors ${viewportDragOver ? 'bg-primary/5' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setViewportDragOver(true) }}
+              onDragLeave={() => setViewportDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setViewportDragOver(false)
+                const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+                files.forEach((file) => {
+                  const url = URL.createObjectURL(file)
+                  const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+                  addScene(name, url)
+                })
+              }}
+            >
+              <input
+                ref={viewportFileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = e.target.files
+                  if (!files) return
+                  Array.from(files).forEach((file) => {
+                    if (!file.type.startsWith('image/')) return
+                    const url = URL.createObjectURL(file)
+                    const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+                    addScene(name, url)
+                  })
+                }}
+              />
+              {viewportDragOver ? (
+                <div className="text-center">
+                  <div className="mx-auto w-20 h-20 rounded-2xl border-2 border-dashed border-primary bg-primary/10 flex items-center justify-center mb-4">
+                    <Upload className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-medium text-primary mb-1">Drop your images here</h3>
+                  <p className="text-sm text-muted-foreground">
+                    They will be added as panorama scenes
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center max-w-md">
+                  <div className="mx-auto w-20 h-20 rounded-2xl bg-secondary flex items-center justify-center mb-6">
+                    <Compass className="h-10 w-10 text-muted-foreground/40" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground mb-2 text-balance">
+                    Start building your virtual tour
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed text-pretty">
+                    Upload your 360-degree panorama images to create an immersive experience. You can add multiple scenes and connect them with interactive hotspots.
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <Button
+                      size="lg"
+                      className="gap-2"
+                      onClick={() => viewportFileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload Panorama Images
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground/50 mt-4">
+                    or drag and drop images anywhere on this area
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
