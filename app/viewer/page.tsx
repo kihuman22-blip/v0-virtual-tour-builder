@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Info,
+  ImageIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,12 +51,14 @@ function HotspotDetail({
   hotspot: Hotspot
   onClose: () => void
 }) {
+  const accentColor = hotspot.color || '#4db8a4'
+
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none animate-in fade-in-0 duration-200">
-      <div className="pointer-events-auto bg-card/95 backdrop-blur-xl border border-border rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Image */}
+      <div className="pointer-events-auto bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.05)] max-w-sm w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Image -- full bleed */}
         {hotspot.type === 'image' && hotspot.imageUrl && (
-          <div className="w-full max-h-72 overflow-hidden">
+          <div className="w-full max-h-64 overflow-hidden">
             <img
               src={hotspot.imageUrl}
               alt={hotspot.title}
@@ -65,23 +69,35 @@ function HotspotDetail({
         )}
 
         <div className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <h3 className="font-semibold text-card-foreground text-base leading-tight">{hotspot.title}</h3>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div
+                className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: `${accentColor}15`, color: accentColor }}
+              >
+                {hotspot.type === 'image' ? (
+                  <ImageIcon className="h-4 w-4" />
+                ) : (
+                  <Info className="h-4 w-4" />
+                )}
+              </div>
+              <h3 className="font-semibold text-gray-900 text-sm leading-tight">{hotspot.title}</h3>
+            </div>
             <button
               onClick={onClose}
-              className="flex-shrink-0 h-7 w-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+              className="flex-shrink-0 h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
           {hotspot.description && (
-            <p className="text-sm text-muted-foreground leading-relaxed">{hotspot.description}</p>
+            <p className="text-sm text-gray-500 leading-relaxed">{hotspot.description}</p>
           )}
 
           {hotspot.type === 'content' && hotspot.content && (
             <div
-              className="text-sm text-muted-foreground leading-relaxed mt-2 prose prose-sm prose-invert max-w-none"
+              className="text-sm text-gray-500 leading-relaxed mt-2 prose prose-sm max-w-none"
               dangerouslySetInnerHTML={{ __html: hotspot.content }}
             />
           )}

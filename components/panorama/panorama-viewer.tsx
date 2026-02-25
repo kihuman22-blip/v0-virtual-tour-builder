@@ -403,50 +403,55 @@ export default function PanoramaViewer({
               style={{ left: 0, top: 0, display: 'none', willChange: 'transform, left, top', zIndex: isSelected ? 20 : 10 }}
             >
               {hotspot.type === 'scene-link' ? (
-                <div className={`flex flex-col items-center ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}>
-                  {/* Arrow: white circle with thick colored border and chevron */}
+                <div className={`flex flex-col items-center ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} group/arrow`}>
+                  {/* Clean white glass arrow */}
                   <div
-                    className={`relative flex items-center justify-center rounded-full transition-shadow duration-150 ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-black/50' : ''}`}
+                    className={`relative flex items-center justify-center rounded-full transition-all duration-200 group-hover/arrow:scale-110 ${isSelected ? 'ring-2 ring-offset-2 ring-offset-black/50' : ''}`}
                     style={{
-                      width: 56, height: 56,
-                      background: 'rgba(255,255,255,0.95)',
-                      border: `5px solid ${hotspot.color || '#a03030'}`,
-                      boxShadow: '0 4px 24px rgba(0,0,0,0.5), 0 0 0 2px rgba(0,0,0,0.15)',
+                      width: 52, height: 52,
+                      background: 'rgba(255, 255, 255, 0.92)',
+                      backdropFilter: 'blur(12px)',
+                      border: `3px solid ${hotspot.color || '#4db8a4'}`,
+                      boxShadow: '0 2px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.2)',
+                      ringColor: hotspot.color || '#4db8a4',
                     }}
                   >
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                      <path d="M6 15l6-6 6 6" stroke={hotspot.color || '#a03030'} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M6 15l6-6 6 6" stroke={hotspot.color || '#4db8a4'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
                   {targetScene && (
-                    <div className="mt-2 px-3 py-1 rounded-md bg-black/80 backdrop-blur-sm whitespace-nowrap shadow-lg">
-                      <span className="text-[11px] font-semibold text-white">{targetScene.name}</span>
+                    <div className="mt-1.5 px-3 py-0.5 rounded-full bg-white/90 backdrop-blur-md shadow-sm whitespace-nowrap border border-black/5">
+                      <span className="text-[10px] font-semibold text-gray-700">{targetScene.name}</span>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className={`flex flex-col items-center ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}>
+                <div className={`flex flex-col items-center ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} group/hs`}>
+                  {/* Clean white glass icon */}
                   <div
-                    className={`flex items-center justify-center rounded-full transition-shadow duration-150 ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-black/50' : ''}`}
+                    className={`flex items-center justify-center rounded-full transition-all duration-200 group-hover/hs:scale-110 ${isSelected ? 'ring-2 ring-offset-2 ring-offset-black/50' : ''}`}
                     style={{
                       width: 44, height: 44,
-                      background: hotspot.color || '#4db8a4',
-                      boxShadow: `0 4px 20px ${hotspot.color || '#4db8a4'}80, 0 2px 8px rgba(0,0,0,0.4)`,
+                      background: 'rgba(255, 255, 255, 0.92)',
+                      backdropFilter: 'blur(12px)',
+                      boxShadow: '0 2px 16px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.3)',
+                      ringColor: hotspot.color || '#4db8a4',
                     }}
                   >
                     {hotspot.icon === 'eye' ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hotspot.color || '#374151'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
                     ) : hotspot.icon === 'link' ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hotspot.color || '#374151'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     ) : hotspot.type === 'image' ? (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hotspot.color || '#374151'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                     ) : (
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={hotspot.color || '#374151'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                     )}
                   </div>
                   {hotspot.title && (
-                    <div className="mt-1.5 px-2.5 py-0.5 rounded-md bg-black/75 backdrop-blur-sm whitespace-nowrap">
-                      <span className="text-[10px] font-medium text-white">{hotspot.title}</span>
+                    <div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-white/90 backdrop-blur-md shadow-sm whitespace-nowrap border border-black/5">
+                      <span className="text-[10px] font-medium text-gray-700">{hotspot.title}</span>
                     </div>
                   )}
                 </div>
