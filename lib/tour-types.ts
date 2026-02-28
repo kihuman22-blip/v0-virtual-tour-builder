@@ -12,7 +12,7 @@ export interface Hotspot {
   description?: string
   imageUrl?: string
   content?: string
-  icon?: 'arrow' | 'info' | 'image' | 'link' | 'eye'
+  icon?: 'arrow' | 'info' | 'image' | 'link' | 'eye' | 'utensils' | 'menu' | 'chef' | 'wine' | 'coffee' | 'star' | 'heart' | 'map-pin' | 'phone' | 'clock'
   color?: string
 }
 
@@ -86,7 +86,8 @@ export function createHotspot(
     position,
     title,
     icon: type === 'scene-link' ? 'arrow' : type === 'info' ? 'info' : type === 'image' ? 'image' : 'link',
-    color: '#3b82f6',
+    // Navigation arrows use teal, info/image hotspots use orange/amber
+    color: type === 'scene-link' ? '#4db8a4' : '#f59e0b',
   }
 }
 

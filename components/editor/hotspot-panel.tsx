@@ -42,14 +42,24 @@ const HOTSPOT_TYPES: { type: Hotspot['type']; label: string; icon: React.ReactNo
   { type: 'content', label: 'Content', icon: <FileText className="h-4 w-4" />, desc: 'Rich text content' },
 ]
 
-const HOTSPOT_COLORS = ['#4db8a4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#8B2020', '#ffffff']
+const HOTSPOT_COLORS = ['#f59e0b', '#4db8a4', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#3b82f6', '#ffffff']
 
 const ICON_OPTIONS: { value: Hotspot['icon']; label: string }[] = [
   { value: 'info', label: 'Info' },
-  { value: 'image', label: 'Image' },
-  { value: 'eye', label: 'Eye' },
+  { value: 'image', label: 'Bild' },
+  { value: 'eye', label: 'Auge' },
   { value: 'link', label: 'Link' },
-  { value: 'arrow', label: 'Arrow' },
+  { value: 'arrow', label: 'Pfeil' },
+  { value: 'utensils', label: 'Essen' },
+  { value: 'menu', label: 'Speisekarte' },
+  { value: 'chef', label: 'Koch' },
+  { value: 'wine', label: 'Wein/Getränke' },
+  { value: 'coffee', label: 'Kaffee' },
+  { value: 'star', label: 'Stern' },
+  { value: 'heart', label: 'Herz' },
+  { value: 'map-pin', label: 'Standort' },
+  { value: 'phone', label: 'Telefon' },
+  { value: 'clock', label: 'Uhr' },
 ]
 
 export default function HotspotPanel() {
