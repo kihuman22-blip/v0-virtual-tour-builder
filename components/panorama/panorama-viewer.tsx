@@ -306,11 +306,11 @@ export default function PanoramaViewer({
 
     if (ps.mode === 'camera') {
       if (e.buttons > 0 || e.pressure > 0) {
-        // INVERTED controls: drag left = look left (like grabbing the world)
-        // Horizontal: drag right -> yaw increases (look right)
-        // Vertical: drag down -> pitch increases (look down)
+        // Inverted controls like grabbing the world:
+        // Drag left -> look left, drag right -> look right
+        // Drag down -> look up, drag up -> look down
         targetRotationRef.current.yaw += e.movementX * 0.25
-        targetRotationRef.current.pitch -= e.movementY * 0.25
+        targetRotationRef.current.pitch += e.movementY * 0.25
       }
     }
   }, [onHotspotMoved, screenToYawPitch])
