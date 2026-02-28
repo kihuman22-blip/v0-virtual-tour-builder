@@ -12,7 +12,7 @@ export interface Hotspot {
   description?: string
   imageUrl?: string
   content?: string
-  icon?: 'arrow' | 'info' | 'image' | 'link' | 'eye'
+  icon?: 'arrow' | 'info' | 'image' | 'link' | 'eye' | 'utensils' | 'menu' | 'chef' | 'wine' | 'coffee' | 'star' | 'heart' | 'map-pin' | 'phone' | 'clock'
   color?: string
 }
 

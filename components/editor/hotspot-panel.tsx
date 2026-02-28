@@ -46,10 +46,20 @@ const HOTSPOT_COLORS = ['#f59e0b', '#4db8a4', '#10b981', '#ef4444', '#8b5cf6', '
 
 const ICON_OPTIONS: { value: Hotspot['icon']; label: string }[] = [
   { value: 'info', label: 'Info' },
-  { value: 'image', label: 'Image' },
-  { value: 'eye', label: 'Eye' },
+  { value: 'image', label: 'Bild' },
+  { value: 'eye', label: 'Auge' },
   { value: 'link', label: 'Link' },
-  { value: 'arrow', label: 'Arrow' },
+  { value: 'arrow', label: 'Pfeil' },
+  { value: 'utensils', label: 'Essen' },
+  { value: 'menu', label: 'Speisekarte' },
+  { value: 'chef', label: 'Koch' },
+  { value: 'wine', label: 'Wein/Getränke' },
+  { value: 'coffee', label: 'Kaffee' },
+  { value: 'star', label: 'Stern' },
+  { value: 'heart', label: 'Herz' },
+  { value: 'map-pin', label: 'Standort' },
+  { value: 'phone', label: 'Telefon' },
+  { value: 'clock', label: 'Uhr' },
 ]
 
 export default function HotspotPanel() {
