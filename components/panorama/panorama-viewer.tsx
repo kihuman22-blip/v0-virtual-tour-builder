@@ -56,10 +56,12 @@ export default function PanoramaViewer({
     startY: number
     moved: boolean
     hotspotId: string | null
-    hotspotYaw: number
-    hotspotPitch: number
     pointerId: number
-  }>({ mode: 'none', startX: 0, startY: 0, moved: false, hotspotId: null, hotspotYaw: 0, hotspotPitch: 0, pointerId: -1 })
+  }>({ mode: 'none', startX: 0, startY: 0, moved: false, hotspotId: null, pointerId: -1 })
+  
+  // Reusable raycaster for performance
+  const raycasterRef = useRef(new THREE.Raycaster())
+  const mouseVecRef = useRef(new THREE.Vector2())
 
   // DOM refs for direct hotspot positioning
   const hotspotElsRef = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -165,7 +167,7 @@ export default function PanoramaViewer({
 
       // Freeze camera lerp while dragging a hotspot so raycast stays stable
       if (pointerState.current.mode !== 'hotspot') {
-        const t = Math.min(1, dt * 14)
+        const t = Math.min(1, dt * 18) // Faster lerp for snappier feel
         rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * t
         rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * t
       }
@@ -216,20 +218,22 @@ export default function PanoramaViewer({
     return () => obs.disconnect()
   }, [])
 
-  // ---- Raycast ----
-  const screenToYawPitch = useCallback((cx: number, cy: number): HotspotPosition | null => {
-    const container = canvasContainerRef.current
-    const camera = cameraRef.current
-    const sphere = sphereRef.current
-    if (!container || !camera || !sphere) return null
-    const rect = container.getBoundingClientRect()
-    const mouse = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1)
-    const rc = new THREE.Raycaster()
-    rc.setFromCamera(mouse, camera)
-    const hits = rc.intersectObject(sphere)
+  // ---- Helper: raycast screen coords to yaw/pitch (reuses objects for perf) ----
+  const screenToYawPitch = useCallback((clientX: number, clientY: number): HotspotPosition | null => {
+    const cont = canvasContainerRef.current
+    const cam = cameraRef.current
+    const sph = sphereRef.current
+    if (!cont || !cam || !sph) return null
+    
+    const rect = cont.getBoundingClientRect()
+    mouseVecRef.current.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    )
+    raycasterRef.current.setFromCamera(mouseVecRef.current, cam)
+    const hits = raycasterRef.current.intersectObject(sph)
     if (hits.length > 0) {
       const pt = hits[0].point
-      // Sphere is scale(-1,1,1) so hit.x is negated; atan2(-pt.x, pt.z) corrects it
       const yaw = (Math.atan2(-pt.x, pt.z) * 180) / Math.PI
       const r = Math.sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z)
       const pitch = (Math.asin(pt.y / r) * 180) / Math.PI
@@ -255,7 +259,6 @@ export default function PanoramaViewer({
           startX: e.clientX, startY: e.clientY,
           moved: false,
           hotspotId: hsId,
-          hotspotYaw: hs.position.yaw, hotspotPitch: hs.position.pitch,
           pointerId: e.pointerId,
         }
         containerRef.current?.setPointerCapture(e.pointerId)
@@ -268,7 +271,7 @@ export default function PanoramaViewer({
       mode: 'camera',
       startX: e.clientX, startY: e.clientY,
       moved: false,
-      hotspotId: null, hotspotYaw: 0, hotspotPitch: 0,
+      hotspotId: null,
       pointerId: e.pointerId,
     }
     containerRef.current?.setPointerCapture(e.pointerId)
@@ -283,39 +286,20 @@ export default function PanoramaViewer({
     if (!ps.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
-      // Inline raycast for precision -- no helper function, no frame delay
-      const cont = canvasContainerRef.current
-      const cam = cameraRef.current
-      const sph = sphereRef.current
-      if (cont && cam && sph) {
-        const rect = cont.getBoundingClientRect()
-        const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1
-        const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1
-        const rc = new THREE.Raycaster()
-        rc.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam)
-        const hits = rc.intersectObject(sph)
-        if (hits.length > 0) {
-          const pt = hits[0].point
-          // Sphere is scale(-1,1,1), so hit.x is negated vs world
-          // yawPitchToVector3 uses: x = sin(yaw), z = cos(yaw)
-          // atan2(-pt.x, pt.z) undoes the x flip to get the correct yaw
-          const yaw = (Math.atan2(-pt.x, pt.z) * 180) / Math.PI
-          const r = Math.sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z)
-          const pitch = (Math.asin(pt.y / r) * 180) / Math.PI
-          ps.hotspotYaw = yaw
-          ps.hotspotPitch = pitch
-          onHotspotMoved(ps.hotspotId, { yaw, pitch })
-        }
+      // Raycast to sphere - hotspot follows cursor exactly
+      const pos = screenToYawPitch(e.clientX, e.clientY)
+      if (pos) {
+        onHotspotMoved(ps.hotspotId, pos)
       }
     }
 
     if (ps.mode === 'camera') {
       if (e.buttons > 0 || e.pressure > 0) {
-        targetRotationRef.current.yaw += e.movementX * 0.2
-        targetRotationRef.current.pitch += e.movementY * 0.2
+        targetRotationRef.current.yaw -= e.movementX * 0.15
+        targetRotationRef.current.pitch += e.movementY * 0.15
       }
     }
-  }, [onHotspotMoved])
+  }, [onHotspotMoved, screenToYawPitch])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     const ps = pointerState.current
