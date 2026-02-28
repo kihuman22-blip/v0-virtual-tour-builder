@@ -51,53 +51,42 @@ function HotspotDetail({
   hotspot: Hotspot
   onClose: () => void
 }) {
-  const accentColor = hotspot.color || '#4db8a4'
-
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none animate-in fade-in-0 duration-200">
-      <div className="pointer-events-auto bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.05)] max-w-sm w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="pointer-events-auto bg-[#1a1a1a] rounded-xl shadow-[0_8px_50px_rgba(0,0,0,0.5)] max-w-sm w-full mx-4 overflow-hidden animate-in zoom-in-95 duration-200 relative">
+        {/* Top close button */}
+        <div className="absolute top-3 right-3 z-10">
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
         {/* Image -- full bleed */}
         {hotspot.type === 'image' && hotspot.imageUrl && (
-          <div className="w-full max-h-64 overflow-hidden">
+          <div className="w-full aspect-[4/5] max-h-80 overflow-hidden bg-black">
             <img
               src={hotspot.imageUrl}
               alt={hotspot.title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               crossOrigin="anonymous"
             />
           </div>
         )}
 
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2.5">
-              <div
-                className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: `${accentColor}15`, color: accentColor }}
-              >
-                {hotspot.type === 'image' ? (
-                  <ImageIcon className="h-4 w-4" />
-                ) : (
-                  <Info className="h-4 w-4" />
-                )}
-              </div>
-              <h3 className="font-semibold text-gray-900 text-sm leading-tight">{hotspot.title}</h3>
-            </div>
-            <button
-              onClick={onClose}
-              className="flex-shrink-0 h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        {/* Content */}
+        <div className="p-4">
+          <h3 className="font-medium text-white text-sm leading-tight">{hotspot.title}</h3>
 
           {hotspot.description && (
-            <p className="text-sm text-gray-500 leading-relaxed">{hotspot.description}</p>
+            <p className="text-sm text-white/60 leading-relaxed mt-2">{hotspot.description}</p>
           )}
 
           {hotspot.type === 'content' && hotspot.content && (
             <div
-              className="text-sm text-gray-500 leading-relaxed mt-2 prose prose-sm max-w-none"
+              className="text-sm text-white/60 leading-relaxed mt-2 prose prose-sm prose-invert max-w-none"
               dangerouslySetInnerHTML={{ __html: hotspot.content }}
             />
           )}
