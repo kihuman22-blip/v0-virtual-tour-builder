@@ -54,10 +54,14 @@ export default function PanoramaViewer({
     mode: 'none' | 'camera' | 'hotspot'
     startX: number
     startY: number
+    lastX: number
+    lastY: number
     moved: boolean
     hotspotId: string | null
+    hotspotStartYaw: number
+    hotspotStartPitch: number
     pointerId: number
-  }>({ mode: 'none', startX: 0, startY: 0, moved: false, hotspotId: null, pointerId: -1 })
+  }>({ mode: 'none', startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, hotspotId: null, hotspotStartYaw: 0, hotspotStartPitch: 0, pointerId: -1 })
   
   // Reusable raycaster for performance
   const raycasterRef = useRef(new THREE.Raycaster())
@@ -267,8 +271,11 @@ export default function PanoramaViewer({
         pointerState.current = {
           mode: 'hotspot',
           startX: e.clientX, startY: e.clientY,
+          lastX: e.clientX, lastY: e.clientY,
           moved: false,
           hotspotId: hsId,
+          hotspotStartYaw: hs.position.yaw,
+          hotspotStartPitch: hs.position.pitch,
           pointerId: e.pointerId,
         }
         containerRef.current?.setPointerCapture(e.pointerId)
@@ -280,8 +287,10 @@ export default function PanoramaViewer({
     pointerState.current = {
       mode: 'camera',
       startX: e.clientX, startY: e.clientY,
+      lastX: e.clientX, lastY: e.clientY,
       moved: false,
       hotspotId: null,
+      hotspotStartYaw: 0, hotspotStartPitch: 0,
       pointerId: e.pointerId,
     }
     containerRef.current?.setPointerCapture(e.pointerId)
@@ -297,10 +306,27 @@ export default function PanoramaViewer({
     if (!ps.moved && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
-      // Raycast to sphere - hotspot follows cursor with perfect precision
-      const pos = screenToYawPitch(e.clientX, e.clientY)
-      if (pos) {
-        onHotspotMoved(ps.hotspotId, pos)
+      // Delta-based movement: move hotspot relative to mouse movement
+      // This gives precise 1:1 control like dragging an object
+      const container = canvasContainerRef.current
+      if (container) {
+        const sensitivity = 0.35 // Degrees per pixel
+        const moveDx = e.clientX - ps.lastX
+        const moveDy = e.clientY - ps.lastY
+        
+        // Update the stored start position for continuous movement
+        const hs = sceneRef.current.hotspots.find((h) => h.id === ps.hotspotId)
+        if (hs) {
+          // Move yaw based on horizontal mouse movement (inverted for natural feel)
+          // Move pitch based on vertical mouse movement (inverted: drag down = arrow goes up)
+          const newYaw = hs.position.yaw - moveDx * sensitivity
+          const newPitch = Math.max(-85, Math.min(85, hs.position.pitch - moveDy * sensitivity))
+          
+          onHotspotMoved(ps.hotspotId, { yaw: newYaw, pitch: newPitch })
+        }
+        
+        ps.lastX = e.clientX
+        ps.lastY = e.clientY
       }
     }
 
@@ -313,7 +339,7 @@ export default function PanoramaViewer({
         targetRotationRef.current.pitch += e.movementY * 0.25
       }
     }
-  }, [onHotspotMoved, screenToYawPitch])
+  }, [onHotspotMoved])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     const ps = pointerState.current
@@ -340,7 +366,7 @@ export default function PanoramaViewer({
       }
     }
 
-    pointerState.current = { mode: 'none', startX: 0, startY: 0, moved: false, hotspotId: null, pointerId: -1 }
+    pointerState.current = { mode: 'none', startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, hotspotId: null, hotspotStartYaw: 0, hotspotStartPitch: 0, pointerId: -1 }
   }, [isEditorMode, onSceneClick, onHotspotClick, onHotspotMoved, screenToYawPitch])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
