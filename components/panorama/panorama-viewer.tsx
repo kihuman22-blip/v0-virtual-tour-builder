@@ -167,10 +167,14 @@ export default function PanoramaViewer({
 
       // Smooth camera interpolation - freeze during hotspot drag for stable raycast
       if (pointerState.current.mode !== 'hotspot') {
-        // Use exponential smoothing for buttery camera movement
-        const smoothFactor = 1 - Math.exp(-dt * 20)
+        // Exponential smoothing for silky smooth camera movement
+        const smoothFactor = 1 - Math.exp(-dt * 25)
         rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * smoothFactor
         rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * smoothFactor
+      } else {
+        // During hotspot drag, snap camera instantly for precise raycast
+        rotationRef.current.yaw = targetRotationRef.current.yaw
+        rotationRef.current.pitch = targetRotationRef.current.pitch
       }
       rotationRef.current.pitch = Math.max(-85, Math.min(85, rotationRef.current.pitch))
       targetRotationRef.current.pitch = Math.max(-85, Math.min(85, targetRotationRef.current.pitch))
@@ -180,25 +184,30 @@ export default function PanoramaViewer({
       camera.lookAt(Math.cos(pr) * Math.sin(yr) * 100, Math.sin(pr) * 100, Math.cos(pr) * Math.cos(yr) * 100)
       renderer.render(ts, camera)
 
-      // Position hotspot elements directly in DOM - high performance path
+      // Position hotspot elements directly in DOM - optimized for 60fps
       const w = container.clientWidth
       const h = container.clientHeight
       const tempVec = new THREE.Vector3()
-      sceneRef.current.hotspots.forEach((hs) => {
+      const hotspots = sceneRef.current.hotspots
+      for (let i = 0; i < hotspots.length; i++) {
+        const hs = hotspots[i]
         const el = hotspotElsRef.current.get(hs.id)
-        if (!el) return
+        if (!el) continue
         const p = yawPitchToVector3(hs.position.yaw, hs.position.pitch, 480)
         tempVec.set(p.x, p.y, p.z).project(camera)
         if (tempVec.z < 1) {
           const x = (tempVec.x * 0.5 + 0.5) * w
           const y = (-tempVec.y * 0.5 + 0.5) * h
           const depth = Math.max(0.5, Math.abs(tempVec.z))
-          const scale = Math.max(0.65, Math.min(1.15, 1.0 / depth))
-          el.style.cssText = `left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;transform:translate(-50%,-50%) scale(${scale.toFixed(2)});opacity:1;z-index:${hs.id === selectedHotspotId ? 20 : 10}`
+          const scale = Math.max(0.7, Math.min(1.1, 1.0 / depth))
+          // Use transform for GPU-accelerated positioning
+          el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale.toFixed(3)})`
+          el.style.opacity = '1'
+          el.style.zIndex = hs.id === selectedHotspotId ? '20' : '10'
         } else {
           el.style.opacity = '0'
         }
-      })
+      }
     }
     animate()
     return () => cancelAnimationFrame(frameIdRef.current)
@@ -284,11 +293,11 @@ export default function PanoramaViewer({
 
     const dx = e.clientX - ps.startX
     const dy = e.clientY - ps.startY
-    // Detect movement with low threshold for responsive dragging
-    if (!ps.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) ps.moved = true
+    // Very low threshold for instant drag detection
+    if (!ps.moved && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
-      // Raycast to sphere - hotspot follows cursor exactly
+      // Raycast to sphere - hotspot follows cursor with perfect precision
       const pos = screenToYawPitch(e.clientX, e.clientY)
       if (pos) {
         onHotspotMoved(ps.hotspotId, pos)
@@ -297,9 +306,11 @@ export default function PanoramaViewer({
 
     if (ps.mode === 'camera') {
       if (e.buttons > 0 || e.pressure > 0) {
-        // Smooth camera rotation with natural feel
-        targetRotationRef.current.yaw -= e.movementX * 0.18
-        targetRotationRef.current.pitch += e.movementY * 0.18
+        // INVERTED controls: drag left = look left (like grabbing the world)
+        // Horizontal: drag right -> yaw increases (look right)
+        // Vertical: drag down -> pitch increases (look down)
+        targetRotationRef.current.yaw += e.movementX * 0.25
+        targetRotationRef.current.pitch -= e.movementY * 0.25
       }
     }
   }, [onHotspotMoved, screenToYawPitch])
@@ -363,7 +374,7 @@ export default function PanoramaViewer({
     <div
       ref={containerRef}
       className={`relative w-full h-full overflow-hidden select-none ${className}`}
-      style={{ touchAction: 'none', cursor: isEditorMode ? 'crosshair' : 'grab' }}
+      style={{ touchAction: 'none', cursor: pointerState.current.mode === 'camera' ? 'grabbing' : (isEditorMode ? 'crosshair' : 'grab') }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -386,8 +397,8 @@ export default function PanoramaViewer({
               key={hotspot.id}
               ref={(el) => setHotspotRef(hotspot.id, el)}
               data-hotspot-id={hotspot.id}
-              className="absolute pointer-events-auto"
-              style={{ opacity: 0, willChange: 'transform, opacity' }}
+              className="absolute top-0 left-0 pointer-events-auto"
+              style={{ opacity: 0, willChange: 'transform', transition: 'opacity 0.15s ease-out' }}
             >
               {hotspot.type === 'scene-link' ? (
                 <div className={`flex flex-col items-center ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} group/arrow`}>
