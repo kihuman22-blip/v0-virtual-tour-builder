@@ -165,11 +165,12 @@ export default function PanoramaViewer({
         targetRotationRef.current.yaw += autoRotateSpeed * dt * 10
       }
 
-      // Freeze camera lerp while dragging a hotspot so raycast stays stable
+      // Smooth camera interpolation - freeze during hotspot drag for stable raycast
       if (pointerState.current.mode !== 'hotspot') {
-        const t = Math.min(1, dt * 18) // Faster lerp for snappier feel
-        rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * t
-        rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * t
+        // Use exponential smoothing for buttery camera movement
+        const smoothFactor = 1 - Math.exp(-dt * 20)
+        rotationRef.current.yaw += (targetRotationRef.current.yaw - rotationRef.current.yaw) * smoothFactor
+        rotationRef.current.pitch += (targetRotationRef.current.pitch - rotationRef.current.pitch) * smoothFactor
       }
       rotationRef.current.pitch = Math.max(-85, Math.min(85, rotationRef.current.pitch))
       targetRotationRef.current.pitch = Math.max(-85, Math.min(85, targetRotationRef.current.pitch))
@@ -179,29 +180,29 @@ export default function PanoramaViewer({
       camera.lookAt(Math.cos(pr) * Math.sin(yr) * 100, Math.sin(pr) * 100, Math.cos(pr) * Math.cos(yr) * 100)
       renderer.render(ts, camera)
 
-      // Position hotspot elements directly in DOM
+      // Position hotspot elements directly in DOM - high performance path
       const w = container.clientWidth
       const h = container.clientHeight
+      const tempVec = new THREE.Vector3()
       sceneRef.current.hotspots.forEach((hs) => {
         const el = hotspotElsRef.current.get(hs.id)
         if (!el) return
         const p = yawPitchToVector3(hs.position.yaw, hs.position.pitch, 480)
-        const v = new THREE.Vector3(p.x, p.y, p.z)
-        v.project(camera)
-        if (v.z < 1) {
-          el.style.display = ''
-          el.style.left = `${((v.x * 0.5 + 0.5) * w).toFixed(1)}px`
-          el.style.top = `${((-v.y * 0.5 + 0.5) * h).toFixed(1)}px`
-          const sc = Math.max(0.6, Math.min(1.2, 1.0 / Math.max(0.5, Math.abs(v.z))))
-          el.style.transform = `translate(-50%, -50%) scale(${sc.toFixed(3)})`
+        tempVec.set(p.x, p.y, p.z).project(camera)
+        if (tempVec.z < 1) {
+          const x = (tempVec.x * 0.5 + 0.5) * w
+          const y = (-tempVec.y * 0.5 + 0.5) * h
+          const depth = Math.max(0.5, Math.abs(tempVec.z))
+          const scale = Math.max(0.65, Math.min(1.15, 1.0 / depth))
+          el.style.cssText = `left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;transform:translate(-50%,-50%) scale(${scale.toFixed(2)});opacity:1;z-index:${hs.id === selectedHotspotId ? 20 : 10}`
         } else {
-          el.style.display = 'none'
+          el.style.opacity = '0'
         }
       })
     }
     animate()
     return () => cancelAnimationFrame(frameIdRef.current)
-  }, [autoRotate, autoRotateSpeed])
+  }, [autoRotate, autoRotateSpeed, selectedHotspotId])
 
   // ---- Resize ----
   useEffect(() => {
@@ -283,7 +284,8 @@ export default function PanoramaViewer({
 
     const dx = e.clientX - ps.startX
     const dy = e.clientY - ps.startY
-    if (!ps.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) ps.moved = true
+    // Detect movement with low threshold for responsive dragging
+    if (!ps.moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) ps.moved = true
 
     if (ps.mode === 'hotspot' && ps.moved && onHotspotMoved && ps.hotspotId) {
       // Raycast to sphere - hotspot follows cursor exactly
@@ -295,8 +297,9 @@ export default function PanoramaViewer({
 
     if (ps.mode === 'camera') {
       if (e.buttons > 0 || e.pressure > 0) {
-        targetRotationRef.current.yaw -= e.movementX * 0.15
-        targetRotationRef.current.pitch += e.movementY * 0.15
+        // Smooth camera rotation with natural feel
+        targetRotationRef.current.yaw -= e.movementX * 0.18
+        targetRotationRef.current.pitch += e.movementY * 0.18
       }
     }
   }, [onHotspotMoved, screenToYawPitch])
@@ -326,7 +329,7 @@ export default function PanoramaViewer({
       }
     }
 
-    pointerState.current = { mode: 'none', startX: 0, startY: 0, moved: false, hotspotId: null, hotspotYaw: 0, hotspotPitch: 0, pointerId: -1 }
+    pointerState.current = { mode: 'none', startX: 0, startY: 0, moved: false, hotspotId: null, pointerId: -1 }
   }, [isEditorMode, onSceneClick, onHotspotClick, onHotspotMoved, screenToYawPitch])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -384,7 +387,7 @@ export default function PanoramaViewer({
               ref={(el) => setHotspotRef(hotspot.id, el)}
               data-hotspot-id={hotspot.id}
               className="absolute pointer-events-auto"
-              style={{ left: 0, top: 0, display: 'none', willChange: 'transform, left, top', zIndex: isSelected ? 20 : 10 }}
+              style={{ opacity: 0, willChange: 'transform, opacity' }}
             >
               {hotspot.type === 'scene-link' ? (
                 <div className={`flex flex-col items-center ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} group/arrow`}>
